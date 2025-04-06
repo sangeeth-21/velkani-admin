@@ -58,7 +58,7 @@ const Subcategories = () => {
     try {
       setIsLoading(true);
       const response = await fetch(
-        "http://ghost.a1h.in/api/index.php?action=get_categories"
+        "https://ghost.a1h.in/api/index.php?action=get_categories"
       );
       const data = await response.json();
       if (data.status === "success") {
@@ -79,7 +79,7 @@ const Subcategories = () => {
     try {
       setIsLoading(true);
       const response = await fetch(
-        "http://ghost.a1h.in/api/index.php?action=get_subcategories"
+        "https://ghost.a1h.in/api/index.php?action=get_subcategories"
       );
       const data = await response.json();
       if (data.status === "success") {
@@ -126,7 +126,7 @@ const Subcategories = () => {
       const formData = new FormData();
       formData.append("image", file);
 
-      const response = await fetch("http://ghost.a1h.in/api/upload.php", {
+      const response = await fetch("https://ghost.a1h.in/api/upload.php", {
         method: "POST",
         body: formData,
       });
@@ -164,7 +164,7 @@ const Subcategories = () => {
 
       // Then create the subcategory with the image URL
       const response = await fetch(
-        "https://ghost.a1h.in/api/index.php?action=add_subcategory",
+        "httpss://ghost.a1h.in/api/index.php?action=add_subcategory",
         {
           method: "POST",
           headers: {
@@ -202,7 +202,7 @@ const Subcategories = () => {
     try {
       setIsDeleteLoading(true);
       const response = await fetch(
-        "https://ghost.a1h.in/api/index.php?action=delete_subcategory",
+        "httpss://ghost.a1h.in/api/index.php?action=delete_subcategory",
         {
           method: "POST",
           headers: {
@@ -388,7 +388,7 @@ const Subcategories = () => {
                             alt={subcategory.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = "https://placehold.co/200x200?text=Error";
+                              (e.target as HTMLImageElement).src = "httpss://placehold.co/200x200?text=Error";
                             }}
                           />
                         ) : (
@@ -440,7 +440,7 @@ const Subcategories = () => {
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src =
-                            "https://placehold.co/600x400?text=Image+Not+Found";
+                            "httpss://placehold.co/600x400?text=Image+Not+Found";
                         }}
                       />
                     ) : (

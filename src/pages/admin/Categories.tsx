@@ -39,7 +39,7 @@ const Categories = () => {
     try {
       setIsLoading(true);
       const response = await fetch(
-        "http://ghost.a1h.in/api/index.php?action=get_categories"
+        "https://ghost.a1h.in/api/index.php?action=get_categories"
       );
       const data = await response.json();
       if (data.status === "success") {
@@ -87,7 +87,7 @@ const Categories = () => {
       const formData = new FormData();
       formData.append("image", file);
 
-      const response = await fetch("http://ghost.a1h.in/api/upload.php", {
+      const response = await fetch("https://ghost.a1h.in/api/upload.php", {
         method: "POST",
         body: formData,
       });
@@ -125,7 +125,7 @@ const Categories = () => {
 
       // Then create the category with the image URL
       const response = await fetch(
-        "http://ghost.a1h.in/api/index.php?action=add_category",
+        "https://ghost.a1h.in/api/index.php?action=add_category",
         {
           method: "POST",
           headers: {
@@ -163,7 +163,7 @@ const Categories = () => {
       setIsDeleteLoading(true);
       
       const response = await fetch(
-        "https://ghost.a1h.in/api/index.php?action=delete_category",
+        "httpss://ghost.a1h.in/api/index.php?action=delete_category",
         {
           method: "POST",
           headers: {
@@ -311,7 +311,7 @@ const Categories = () => {
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src =
-                              "https://placehold.co/200x200?text=Error";
+                              "httpss://placehold.co/200x200?text=Error";
                           }}
                         />
                       ) : (
@@ -355,7 +355,7 @@ const Categories = () => {
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src =
-                            "https://placehold.co/600x400?text=Image+Not+Found";
+                            "httpss://placehold.co/600x400?text=Image+Not+Found";
                         }}
                       />
                     ) : (
