@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate, Outlet } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { 
   LayoutDashboard, 
@@ -15,9 +14,9 @@ import {
 import { cn } from "@/lib/utils";
 import ThemeSwitcher from "./ThemeSwitcher";
 import LanguageSwitcher from "./LanguageSwitcher";
+import Cookies from "js-cookie";
 
 const AdminLayout: React.FC = () => {
-  const { logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -31,6 +30,11 @@ const AdminLayout: React.FC = () => {
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  const handleLogout = () => {
+    Cookies.remove("adminAuthenticated");
+    navigate("/login");
   };
 
   return (
@@ -84,7 +88,7 @@ const AdminLayout: React.FC = () => {
             <Button
               variant="outline"
               className="w-full flex items-center gap-2 dark:border-gray-600 dark:hover:bg-gray-700"
-              onClick={logout}
+              onClick={handleLogout}
             >
               <LogOut size={16} />
               <span>Logout</span>

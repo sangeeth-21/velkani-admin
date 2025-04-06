@@ -14,7 +14,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 // Hardcoded credentials for demo purposes
 // In a real app, you would validate against a backend
 const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "password";
+const ADMIN_PASSWORD = "1234";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
