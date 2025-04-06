@@ -164,7 +164,7 @@ const Subcategories = () => {
 
       // Then create the subcategory with the image URL
       const response = await fetch(
-        "httpss://ghost.a1h.in/api/index.php?action=add_subcategory",
+        "https://ghost.a1h.in/api/index.php?action=add_subcategory",
         {
           method: "POST",
           headers: {
@@ -202,7 +202,7 @@ const Subcategories = () => {
     try {
       setIsDeleteLoading(true);
       const response = await fetch(
-        "httpss://ghost.a1h.in/api/index.php?action=delete_subcategory",
+        "https://ghost.a1h.in/api/index.php?action=delete_subcategory",
         {
           method: "POST",
           headers: {

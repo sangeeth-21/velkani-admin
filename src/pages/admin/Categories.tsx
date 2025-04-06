@@ -163,7 +163,7 @@ const Categories = () => {
       setIsDeleteLoading(true);
       
       const response = await fetch(
-        "httpss://ghost.a1h.in/api/index.php?action=delete_category",
+        "https://ghost.a1h.in/api/index.php?action=delete_category",
         {
           method: "POST",
           headers: {
