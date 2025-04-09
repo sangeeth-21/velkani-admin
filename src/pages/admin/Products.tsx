@@ -66,7 +66,7 @@ interface Product {
   updated_at: string;
 }
 
-const API_BASE_URL = "https://ghost.a1h.in/api";
+const API_BASE_URL = "https://srivelkanistore.site/api";
 
 const Products = () => {
   const [name, setName] = useState("");
