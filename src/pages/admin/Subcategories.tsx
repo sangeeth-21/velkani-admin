@@ -58,7 +58,7 @@ const Subcategories = () => {
     try {
       setIsLoading(true);
       const response = await fetch(
-        "https://ghost.a1h.in/api/index.php?action=get_categories"
+        "https://srivelkanistore.site/api/index.php?action=get_categories"
       );
       const data = await response.json();
       if (data.status === "success") {
@@ -79,7 +79,7 @@ const Subcategories = () => {
     try {
       setIsLoading(true);
       const response = await fetch(
-        "https://ghost.a1h.in/api/index.php?action=get_subcategories"
+        "https://srivelkanistore.site/api/index.php?action=get_subcategories"
       );
       const data = await response.json();
       if (data.status === "success") {
@@ -164,7 +164,7 @@ const Subcategories = () => {
 
       // Then create the subcategory with the image URL
       const response = await fetch(
-        "https://ghost.a1h.in/api/index.php?action=add_subcategory",
+        "https://srivelkanistore.site/api/index.php?action=add_subcategory",
         {
           method: "POST",
           headers: {
@@ -202,7 +202,7 @@ const Subcategories = () => {
     try {
       setIsDeleteLoading(true);
       const response = await fetch(
-        "https://ghost.a1h.in/api/index.php?action=delete_subcategory",
+        "https://srivelkanistore.site/api/index.php?action=delete_subcategory",
         {
           method: "POST",
           headers: {
