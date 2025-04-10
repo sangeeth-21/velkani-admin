@@ -266,77 +266,77 @@ const Products = () => {
   };
   
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!name || !description || !categoryId || !subcategoryId) {
-      toast.error("Please fill all required fields");
-      return;
-    }
-    
-    if (imageFiles.length === 0) {
-      toast.error("Please upload at least one image");
-      return;
-    }
-    
-    // Validate MRP and price points
-    const mrpValue = typeof mrp === 'string' ? parseFloat(mrp) : mrp;
-    if (isNaN(mrpValue) {
-      toast.error("Please enter a valid MRP");
-      return;
-    }
+  e.preventDefault();
+  
+  if (!name || !description || !categoryId || !subcategoryId) {
+    toast.error("Please fill all required fields");
+    return;
+  }
+  
+  if (imageFiles.length === 0) {
+    toast.error("Please upload at least one image");
+    return;
+  }
+  
+  // Validate MRP and price points
+  const mrpValue = typeof mrp === 'string' ? parseFloat(mrp) : mrp;
+  if (isNaN(mrpValue)) {
+    toast.error("Please enter a valid MRP");
+    return;
+  }
 
-    if (pricePoints.some(pp => {
-      const quantity = typeof pp.quantity === 'string' ? parseInt(pp.quantity) : pp.quantity;
-      const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
-      return quantity <= 0 || price < 0 || price > mrpValue;
-    })) {
-      toast.error("Price points must have valid values and should not exceed MRP");
-      return;
-    }
+  if (pricePoints.some(pp => {
+    const quantity = typeof pp.quantity === 'string' ? parseInt(pp.quantity) : pp.quantity;
+    const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
+    return quantity <= 0 || price < 0 || price > mrpValue;
+  })) {
+    toast.error("Price points must have valid values and should not exceed MRP");
+    return;
+  }
+  
+  try {
+    setIsLoading(true);
     
-    try {
-      setIsLoading(true);
-      
-      // Upload all images at once
-      const uploadedImages = await uploadImages(imageFiles);
-      
-      const productData = {
-        action: "add_product",
-        category_id: categoryId,
-        subcategory_id: subcategoryId,
-        name,
-        description,
-        mrp: mrpValue.toFixed(2),
-        price_points: pricePoints.map(pp => ({
-          quantity: pp.quantity,
-          price: typeof pp.price === 'string' ? parseFloat(pp.price).toFixed(2) : pp.price
-        })),
-        images: uploadedImages.map(img => img.image_url),
-      };
-      
-      const response = await fetch(`${API_BASE_URL}/index.php`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(productData),
-      });
-      
-      const data = await response.json();
-      if (data.status === "success") {
-        toast.success("Product added successfully");
-        fetchProducts();
-        resetForm();
-      } else {
-        toast.error(data.message || "Failed to add product");
-      }
-    } catch (error) {
-      toast.error("Error adding product");
-      console.error(error);
-    } finally {
-      setIsLoading(false);
+    // Upload all images at once
+    const uploadedImages = await uploadImages(imageFiles);
+    
+    const productData = {
+      action: "add_product",
+      category_id: categoryId,
+      subcategory_id: subcategoryId,
+      name,
+      description,
+      mrp: mrpValue.toFixed(2),
+      price_points: pricePoints.map(pp => ({
+        quantity: pp.quantity,
+        price: typeof pp.price === 'string' ? parseFloat(pp.price).toFixed(2) : pp.price
+      })),
+      images: uploadedImages.map(img => img.image_url),
+    };
+    
+    const response = await fetch(`${API_BASE_URL}/index.php`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(productData),
+    });
+    
+    const data = await response.json();
+    if (data.status === "success") {
+      toast.success("Product added successfully");
+      fetchProducts();
+      resetForm();
+    } else {
+      toast.error(data.message || "Failed to add product");
     }
-  };
+  } catch (error) {
+    toast.error("Error adding product");
+    console.error(error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const resetForm = () => {
     setName("");
