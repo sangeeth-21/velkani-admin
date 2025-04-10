@@ -13,6 +13,7 @@ import Dashboard from "./pages/admin/Dashboard";
 import Categories from "./pages/admin/Categories";
 import Subcategories from "./pages/admin/Subcategories";
 import Products from "./pages/admin/Products";
+import AllProducts from "./pages/admin/Allproducts"; // Changed import name to uppercase
 import Documents from "./pages/admin/Documents";
 import NotFound from "./pages/NotFound";
 
@@ -69,6 +70,7 @@ const App = () => {
                 <Route path="categories" element={<Categories />} />
                 <Route path="subcategories" element={<Subcategories />} />
                 <Route path="products" element={<Products />} />
+                <Route path="Allproducts" element={<AllProducts />} /> {/* Changed to uppercase */}
                 <Route path="documents" element={<Documents />} />
               </Route>
 

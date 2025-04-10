@@ -731,7 +731,7 @@ const Products = () => {
                     </div>
                     
                     <div className="flex-1">
-                      <Label className="text-xs">Price</Label>
+                      <Label className="text-xs">Price (₹)</Label>
                       <Input
                         type="text"
                         inputMode="decimal"
@@ -869,7 +869,7 @@ const Products = () => {
                                 const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
                                 return (
                                   <span key={pp.id} className="text-xs bg-muted px-2 py-1 rounded">
-                                    {pp.quantity} units: ${typeof price === 'number' ? price.toFixed(2) : price}
+                                    {pp.quantity} units: ₹{typeof price === 'number' ? price.toFixed(2) : price}
                                   </span>
                                 );
                               })}
@@ -952,7 +952,7 @@ const Products = () => {
                           </div>
                           <div className="flex justify-between mt-1">
                             <span className="font-medium">Price:</span>
-                            <span>${typeof price === 'number' ? price.toFixed(2) : price}</span>
+                            <span>₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
                           </div>
                         </div>
                       );
