@@ -997,14 +997,14 @@ const Products = () => {
                             <span>₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
                           </div>
                           <div className="flex justify-between mt-1">
-                            <span className="font-medium">Discount:</span>
-                            <span>
-                              {typeof previewProduct.mrp === 'string' 
-                                ? ((1 - parseFloat(pp.price as string) / parseFloat(previewProduct.mrp)) * 100 
-                                : ((1 - (pp.price as number) / previewProduct.mrp) * 100
-                              }%
-                            </span>
-                          </div>
+  <span className="font-medium">Discount:</span>
+  <span>
+    {typeof previewProduct.mrp === 'string' 
+      ? ((1 - parseFloat(pp.price as string) / parseFloat(previewProduct.mrp)) * 100).toFixed(2)
+      : ((1 - (pp.price as number) / (previewProduct.mrp as number)) * 100).toFixed(2)
+    }%
+  </span>
+</div>
                         </div>
                       );
                     })}
