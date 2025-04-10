@@ -50,8 +50,15 @@ interface Subcategory {
 }
 
 interface PricePoint {
+  id: string;
   quantity: string | number;
   price: string | number;
+}
+
+interface ProductImage {
+  id: string;
+  image_url: string;
+  display_order: string;
 }
 
 interface Product {
@@ -60,7 +67,7 @@ interface Product {
   subcategory_id: string;
   name: string;
   description: string;
-  images: string[];
+  images: ProductImage[];
   price_points: PricePoint[];
   created_at: string;
   updated_at: string;
@@ -76,7 +83,7 @@ const Products = () => {
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
   const [pricePoints, setPricePoints] = useState<PricePoint[]>([
-    { quantity: "1", price: "0" }
+    { id: Date.now().toString(), quantity: "1", price: "0" }
   ]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -177,7 +184,7 @@ const Products = () => {
     }
   };
 
-  const uploadImages = async (files: File[]): Promise<string[]> => {
+  const uploadImages = async (files: File[]): Promise<ProductImage[]> => {
     const formData = new FormData();
     files.forEach(file => {
       formData.append("images[]", file);
@@ -190,7 +197,11 @@ const Products = () => {
       });
       const data = await response.json();
       if (data.status === "success") {
-        return data.urls;
+        return data.urls.map((url: string, index: number) => ({
+          id: Date.now().toString() + index,
+          image_url: url,
+          display_order: index.toString()
+        }));
       }
       throw new Error(data.message || "Failed to upload images");
     } catch (error) {
@@ -228,7 +239,7 @@ const Products = () => {
   };
   
   const handleAddPricePoint = () => {
-    setPricePoints([...pricePoints, { quantity: "1", price: "0" }]);
+    setPricePoints([...pricePoints, { id: Date.now().toString(), quantity: "1", price: "0" }]);
   };
   
   const handleChangePricePoint = (
@@ -278,7 +289,7 @@ const Products = () => {
       setIsLoading(true);
       
       // Upload all images at once
-      const uploadedImageUrls = await uploadImages(imageFiles);
+      const uploadedImages = await uploadImages(imageFiles);
       
       const productData = {
         action: "add_product",
@@ -286,8 +297,11 @@ const Products = () => {
         subcategory_id: subcategoryId,
         name,
         description,
-        price_points: pricePoints,
-        images: uploadedImageUrls,
+        price_points: pricePoints.map(pp => ({
+          quantity: pp.quantity,
+          price: typeof pp.price === 'string' ? parseFloat(pp.price).toFixed(2) : pp.price
+        })),
+        images: uploadedImages,
       };
       
       const response = await fetch(`${API_BASE_URL}/index.php`, {
@@ -320,7 +334,7 @@ const Products = () => {
     imageUrls.forEach(url => URL.revokeObjectURL(url));
     setImageFiles([]);
     setImageUrls([]);
-    setPricePoints([{ quantity: "1", price: "0" }]);
+    setPricePoints([{ id: Date.now().toString(), quantity: "1", price: "0" }]);
     setCategoryId("");
     setSubcategoryId("");
   };
@@ -366,6 +380,7 @@ const Products = () => {
             try {
               const ppArray = JSON.parse(product.pricePoints);
               pricePoints = ppArray.map((pp: any) => ({
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
                 quantity: pp.quantity || "1",
                 price: pp.price || "0"
               }));
@@ -373,10 +388,14 @@ const Products = () => {
               throw new Error(`Invalid price points format: ${error.message}`);
             }
           } else {
-            pricePoints = [{ quantity: "1", price: product.price || "0" }];
+            pricePoints = [{ id: Date.now().toString(), quantity: "1", price: product.price || "0" }];
           }
 
-          const images = product.imageUrl ? [product.imageUrl] : [];
+          const images = product.imageUrl ? [{
+            id: Date.now().toString(),
+            image_url: product.imageUrl,
+            display_order: "0"
+          }] : [];
 
           const productData = {
             action: "add_product",
@@ -693,7 +712,7 @@ const Products = () => {
                 </div>
                 
                 {pricePoints.map((pricePoint, index) => (
-                  <div key={index} className="flex gap-2 items-center">
+                  <div key={pricePoint.id} className="flex gap-2 items-center">
                     <div className="flex-1">
                       <Label className="text-xs">Quantity</Label>
                       <Input
@@ -782,7 +801,9 @@ const Products = () => {
             <div className="grid gap-4">
               {products.map((product) => {
                 const category = categories.find(c => c.id === product.category_id);
-                const primaryImage = product.images && product.images.length > 0 ? product.images[0] : null;
+                const primaryImage = product.images && product.images.length > 0 
+                  ? product.images[0].image_url 
+                  : null;
                 
                 return (
                   <Card key={product.id}>
@@ -844,10 +865,10 @@ const Products = () => {
                           <div className="mt-3">
                             <h4 className="text-xs font-medium text-muted-foreground mb-1">Price Points:</h4>
                             <div className="flex flex-wrap gap-2">
-                              {product.price_points && product.price_points.map((pp, idx) => {
+                              {product.price_points && product.price_points.map((pp) => {
                                 const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
                                 return (
-                                  <span key={idx} className="text-xs bg-muted px-2 py-1 rounded">
+                                  <span key={pp.id} className="text-xs bg-muted px-2 py-1 rounded">
                                     {pp.quantity} units: ${typeof price === 'number' ? price.toFixed(2) : price}
                                   </span>
                                 );
@@ -876,18 +897,20 @@ const Products = () => {
               {/* Product Images */}
               {previewProduct.images && previewProduct.images.length > 0 ? (
                 <div className="grid grid-cols-4 gap-2">
-                  {previewProduct.images.map((imageUrl, index) => (
-                    <div key={index} className="border rounded-md overflow-hidden aspect-square">
-                      <img 
-                        src={imageUrl} 
-                        alt={`${previewProduct.name} - image ${index + 1}`}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://placehold.co/200x200?text=Error";
-                        }}
-                      />
-                    </div>
-                  ))}
+                  {previewProduct.images
+                    .sort((a, b) => parseInt(a.display_order) - parseInt(b.display_order))
+                    .map((image) => (
+                      <div key={image.id} className="border rounded-md overflow-hidden aspect-square">
+                        <img 
+                          src={image.image_url} 
+                          alt={`${previewProduct.name} - image`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://placehold.co/200x200?text=Error";
+                          }}
+                        />
+                      </div>
+                    ))}
                 </div>
               ) : (
                 <div className="rounded-md bg-muted h-48 flex items-center justify-center">
@@ -919,10 +942,10 @@ const Products = () => {
                 <div>
                   <h3 className="font-medium text-sm text-muted-foreground mb-1">Price Points</h3>
                   <div className="grid grid-cols-2 gap-2">
-                    {previewProduct.price_points && previewProduct.price_points.map((pp, idx) => {
+                    {previewProduct.price_points && previewProduct.price_points.map((pp) => {
                       const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
                       return (
-                        <div key={idx} className="bg-muted p-3 rounded-md">
+                        <div key={pp.id} className="bg-muted p-3 rounded-md">
                           <div className="flex justify-between">
                             <span className="font-medium">Quantity:</span>
                             <span>{pp.quantity}</span>
