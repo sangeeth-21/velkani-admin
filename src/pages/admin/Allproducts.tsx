@@ -7,14 +7,21 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Eye,
   Trash,
   Search,
   Edit,
+  X,
+  ShoppingBag,
+  Plus,
+  Minus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Category {
   id: string;
@@ -71,6 +78,8 @@ const Products = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([]);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -185,16 +194,136 @@ const Products = () => {
     }
   };
 
-  const handleEditProduct = (productId: string) => {
-    // Add your edit logic here
-    toast.info("Edit functionality will be implemented soon");
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(JSON.parse(JSON.stringify(product))); // Deep copy
+    setIsEditing(true);
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!editingProduct) return;
+    
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE_URL}/index.php`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "update_product",
+          id: editingProduct.id,
+          name: editingProduct.name,
+          description: editingProduct.description,
+          price_points: editingProduct.price_points.map(pp => ({
+            quantity: pp.quantity,
+            price: pp.price
+          })),
+          images: editingProduct.images.map(img => ({
+            image_url: img.image_url,
+            display_order: img.display_order
+          }))
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.status === "success") {
+        toast.success("Product updated successfully");
+        fetchProducts();
+        setIsEditing(false);
+      } else {
+        toast.error(data.message || "Failed to update product");
+      }
+    } catch (error) {
+      toast.error("Error updating product");
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePriceChange = (index: number, field: 'quantity' | 'price', value: string) => {
+    if (!editingProduct) return;
+    
+    const updatedPricePoints = [...editingProduct.price_points];
+    updatedPricePoints[index] = {
+      ...updatedPricePoints[index],
+      [field]: field === 'price' ? parseFloat(value) || 0 : parseInt(value) || 1
+    };
+    
+    setEditingProduct({
+      ...editingProduct,
+      price_points: updatedPricePoints
+    });
+  };
+
+  const handleAddPricePoint = () => {
+    if (!editingProduct) return;
+    
+    setEditingProduct({
+      ...editingProduct,
+      price_points: [
+        ...editingProduct.price_points,
+        { id: Date.now().toString(), quantity: 1, price: 0 }
+      ]
+    });
+  };
+
+  const handleRemovePricePoint = (index: number) => {
+    if (!editingProduct || editingProduct.price_points.length <= 1) return;
+    
+    const updatedPricePoints = [...editingProduct.price_points];
+    updatedPricePoints.splice(index, 1);
+    
+    setEditingProduct({
+      ...editingProduct,
+      price_points: updatedPricePoints
+    });
+  };
+
+  const handleImageUrlChange = (index: number, value: string) => {
+    if (!editingProduct) return;
+    
+    const updatedImages = [...editingProduct.images];
+    updatedImages[index] = {
+      ...updatedImages[index],
+      image_url: value
+    };
+    
+    setEditingProduct({
+      ...editingProduct,
+      images: updatedImages
+    });
+  };
+
+  const handleAddImage = () => {
+    if (!editingProduct) return;
+    
+    setEditingProduct({
+      ...editingProduct,
+      images: [
+        ...editingProduct.images,
+        { id: Date.now().toString(), image_url: "", display_order: editingProduct.images.length.toString() }
+      ]
+    });
+  };
+
+  const handleRemoveImage = (index: number) => {
+    if (!editingProduct || editingProduct.images.length <= 1) return;
+    
+    const updatedImages = [...editingProduct.images];
+    updatedImages.splice(index, 1);
+    
+    setEditingProduct({
+      ...editingProduct,
+      images: updatedImages
+    });
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Products</h1>
-        <div className="relative w-1/3">
+        <div className="relative w-full md:w-1/3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search products..."
@@ -213,7 +342,7 @@ const Products = () => {
             {searchTerm ? "No products match your search" : "No products available"}
           </p>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filteredProducts.map((product) => {
               const category = categories.find(c => c.id === product.category_id);
               const primaryImage = product.images && product.images.length > 0 
@@ -223,8 +352,8 @@ const Products = () => {
               return (
                 <Card key={product.id}>
                   <CardContent className="p-4">
-                    <div className="flex gap-4">
-                      <div className="flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border border-border">
+                    <div className="flex flex-col gap-4">
+                      <div className="flex-shrink-0 w-full aspect-square rounded-md overflow-hidden border border-border">
                         {primaryImage ? (
                           <img
                             src={primaryImage}
@@ -256,7 +385,7 @@ const Products = () => {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => handleEditProduct(product.id)}
+                              onClick={() => handleEditProduct(product)}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -410,6 +539,142 @@ const Products = () => {
           </DialogContent>
         )}
       </Dialog>
+
+      {/* Edit Product Dialog */}
+<Dialog open={isEditing} onOpenChange={(open) => !open && setIsEditing(false)}>
+  {editingProduct && (
+    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogHeader className="mt-4">
+        <DialogTitle className="text-xl">Edit Product</DialogTitle>
+      </DialogHeader>
+      
+      <div className="grid gap-6 py-4 px-1">
+        <div className="space-y-3">
+          <Label htmlFor="product-name">Product Name</Label>
+          <Input
+            id="product-name"
+            value={editingProduct.name}
+            onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
+            className="mt-1"
+          />
+        </div>
+        
+        <div className="space-y-3">
+          <Label htmlFor="product-description">Description</Label>
+          <Textarea
+            id="product-description"
+            value={editingProduct.description}
+            onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})}
+            rows={4}
+            className="mt-1"
+          />
+        </div>
+        
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <Label className="text-base">Price Points</Label>
+            <Button variant="outline" size="sm" onClick={handleAddPricePoint}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Price Point
+            </Button>
+          </div>
+          
+          <div className="space-y-4">
+            {editingProduct.price_points.map((pp, index) => (
+              <div key={pp.id || index} className="grid grid-cols-3 gap-3 items-end">
+                <div className="space-y-2">
+                  <Label className="text-sm">Quantity</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={pp.quantity}
+                    onChange={(e) => handlePriceChange(index, 'quantity', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Price (₹)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={pp.price}
+                    onChange={(e) => handlePriceChange(index, 'price', e.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 mb-[0.35rem]"
+                  onClick={() => handleRemovePricePoint(index)}
+                  disabled={editingProduct.price_points.length <= 1}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <Label className="text-base">Images</Label>
+            <Button variant="outline" size="sm" onClick={handleAddImage}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Image
+            </Button>
+          </div>
+          
+          <div className="space-y-4">
+            {editingProduct.images.map((img, index) => (
+              <div key={img.id || index} className="space-y-3">
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-sm">Image URL {index + 1}</Label>
+                    <Input
+                      value={img.image_url}
+                      onChange={(e) => handleImageUrlChange(index, e.target.value)}
+                      placeholder="https://example.com/image.jpg"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 mb-[0.35rem]"
+                    onClick={() => handleRemoveImage(index)}
+                    disabled={editingProduct.images.length <= 1}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {img.image_url && (
+                  <div className="mt-1 w-32 h-32 border rounded-md overflow-hidden">
+                    <img
+                      src={img.image_url}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://placehold.co/200x200?text=Error";
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      <DialogFooter className="mb-4 px-6">
+        <Button variant="outline" onClick={() => setIsEditing(false)}>
+          Cancel
+        </Button>
+        <Button onClick={handleUpdateProduct} disabled={isLoading}>
+          {isLoading ? "Saving..." : "Save Changes"}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  )}
+</Dialog>
     </div>
   );
 };

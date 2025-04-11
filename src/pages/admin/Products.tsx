@@ -67,7 +67,6 @@ interface Product {
   subcategory_id: string;
   name: string;
   description: string;
-  mrp: string | number;
   images: ProductImage[];
   price_points: PricePoint[];
   created_at: string;
@@ -79,7 +78,6 @@ const API_BASE_URL = "https://srivelkanistore.site/api";
 const Products = () => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [mrp, setMrp] = useState<string | number>("0");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState("");
@@ -266,82 +264,73 @@ const Products = () => {
   };
   
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!name || !description || !categoryId || !subcategoryId) {
-    toast.error("Please fill all required fields");
-    return;
-  }
-  
-  if (imageFiles.length === 0) {
-    toast.error("Please upload at least one image");
-    return;
-  }
-  
-  // Validate MRP and price points
-  const mrpValue = typeof mrp === 'string' ? parseFloat(mrp) : mrp;
-  if (isNaN(mrpValue)) {
-    toast.error("Please enter a valid MRP");
-    return;
-  }
-
-  if (pricePoints.some(pp => {
-    const quantity = typeof pp.quantity === 'string' ? parseInt(pp.quantity) : pp.quantity;
-    const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
-    return quantity <= 0 || price < 0 || price > mrpValue;
-  })) {
-    toast.error("Price points must have valid values and should not exceed MRP");
-    return;
-  }
-  
-  try {
-    setIsLoading(true);
+    e.preventDefault();
     
-    // Upload all images at once
-    const uploadedImages = await uploadImages(imageFiles);
-    
-    const productData = {
-      action: "add_product",
-      category_id: categoryId,
-      subcategory_id: subcategoryId,
-      name,
-      description,
-      mrp: mrpValue.toFixed(2),
-      price_points: pricePoints.map(pp => ({
-        quantity: pp.quantity,
-        price: typeof pp.price === 'string' ? parseFloat(pp.price).toFixed(2) : pp.price
-      })),
-      images: uploadedImages.map(img => img.image_url),
-    };
-    
-    const response = await fetch(`${API_BASE_URL}/index.php`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(productData),
-    });
-    
-    const data = await response.json();
-    if (data.status === "success") {
-      toast.success("Product added successfully");
-      fetchProducts();
-      resetForm();
-    } else {
-      toast.error(data.message || "Failed to add product");
+    if (!name || !description || !categoryId || !subcategoryId) {
+      toast.error("Please fill all required fields");
+      return;
     }
-  } catch (error) {
-    toast.error("Error adding product");
-    console.error(error);
-  } finally {
-    setIsLoading(false);
-  }
-};
+    
+    if (imageFiles.length === 0) {
+      toast.error("Please upload at least one image");
+      return;
+    }
+    
+    if (pricePoints.some(pp => {
+      const quantity = typeof pp.quantity === 'string' ? parseInt(pp.quantity) : pp.quantity;
+      const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
+      return quantity <= 0 || price < 0;
+    })) {
+      toast.error("Price points must have valid values");
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      // Upload all images at once
+      const uploadedImages = await uploadImages(imageFiles);
+      
+      const productData = {
+        action: "add_product",
+        category_id: categoryId,
+        subcategory_id: subcategoryId,
+        name,
+        description,
+        price_points: pricePoints.map(pp => ({
+          quantity: pp.quantity,
+          price: typeof pp.price === 'string' ? parseFloat(pp.price).toFixed(2) : pp.price
+        })),
+        images: uploadedImages,
+      };
+      
+      const response = await fetch(`${API_BASE_URL}/index.php`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(productData),
+      });
+      
+      const data = await response.json();
+      if (data.status === "success") {
+        toast.success("Product added successfully");
+        fetchProducts();
+        resetForm();
+      } else {
+        toast.error(data.message || "Failed to add product");
+      }
+    } catch (error) {
+      toast.error("Error adding product");
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const resetForm = () => {
     setName("");
     setDescription("");
-    setMrp("0");
     imageUrls.forEach(url => URL.revokeObjectURL(url));
     setImageFiles([]);
     setImageUrls([]);
@@ -402,12 +391,6 @@ const Products = () => {
             pricePoints = [{ id: Date.now().toString(), quantity: "1", price: product.price || "0" }];
           }
 
-          const mrpValue = product.mrp ? parseFloat(product.mrp) : 
-                          pricePoints.reduce((max, pp) => {
-                            const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
-                            return price > max ? price : max;
-                          }, 0);
-
           const images = product.imageUrl ? [{
             id: Date.now().toString(),
             image_url: product.imageUrl,
@@ -420,9 +403,8 @@ const Products = () => {
             subcategory_id: subcategory.id,
             name: product.name || 'Unnamed Product',
             description: product.description || '',
-            mrp: mrpValue.toFixed(2),
             price_points: pricePoints,
-            images: images.map(img => img.image_url),
+            images: images,
           };
           
           const response = await fetch(`${API_BASE_URL}/index.php`, {
@@ -463,9 +445,9 @@ const Products = () => {
   };
 
   const downloadSampleCSV = () => {
-    const sampleData = `name,description,category,subcategory,mrp,price,imageUrl,pricePoints
-"Product 1","This is a sample product","Electronics","Smartphones",1299.99,999.99,"https://example.com/image1.jpg","[{""quantity"":""1"",""price"":""999.99""},{""quantity"":""5"",""price"":""899.99""}]"
-"Product 2","Another sample product","Clothing","T-shirts",34.99,24.99,"https://example.com/image2.jpg","[{""quantity"":""1"",""price"":""24.99""},{""quantity"":""3"",""price"":""19.99""}]"`;
+    const sampleData = `name,description,category,subcategory,price,imageUrl,pricePoints
+"Product 1","This is a sample product","Electronics","Smartphones",599.99,"https://example.com/image1.jpg","[{""quantity"":""1"",""price"":""599.99""},{""quantity"":""5"",""price"":""549.99""}]"
+"Product 2","Another sample product","Clothing","T-shirts",24.99,"https://example.com/image2.jpg","[{""quantity"":""1"",""price"":""24.99""},{""quantity"":""3"",""price"":""19.99""}]"`;
     
     const blob = new Blob([sampleData], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -644,22 +626,6 @@ const Products = () => {
                   onChange={(e) => setName(e.target.value)}
                   required
                   disabled={isLoading}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="mrp">MRP (Maximum Retail Price)</Label>
-                <Input
-                  id="mrp"
-                  type="number"
-                  inputMode="decimal"
-                  placeholder="MRP in ₹"
-                  value={mrp}
-                  onChange={(e) => setMrp(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  min="0"
-                  step="0.01"
                 />
               </div>
               
@@ -897,7 +863,6 @@ const Products = () => {
                           </div>
                           
                           <div className="mt-3">
-                            <h4 className="text-xs font-medium text-muted-foreground mb-1">MRP: ₹{typeof product.mrp === 'string' ? parseFloat(product.mrp).toFixed(2) : product.mrp.toFixed(2)}</h4>
                             <h4 className="text-xs font-medium text-muted-foreground mb-1">Price Points:</h4>
                             <div className="flex flex-wrap gap-2">
                               {product.price_points && product.price_points.map((pp) => {
@@ -975,13 +940,6 @@ const Products = () => {
                 </div>
                 
                 <div>
-                  <h3 className="font-medium text-sm text-muted-foreground mb-1">MRP</h3>
-                  <p className="text-lg font-semibold">
-                    ₹{typeof previewProduct.mrp === 'string' ? parseFloat(previewProduct.mrp).toFixed(2) : previewProduct.mrp.toFixed(2)}
-                  </p>
-                </div>
-                
-                <div>
                   <h3 className="font-medium text-sm text-muted-foreground mb-1">Price Points</h3>
                   <div className="grid grid-cols-2 gap-2">
                     {previewProduct.price_points && previewProduct.price_points.map((pp) => {
@@ -996,15 +954,6 @@ const Products = () => {
                             <span className="font-medium">Price:</span>
                             <span>₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
                           </div>
-                          <div className="flex justify-between mt-1">
-  <span className="font-medium">Discount:</span>
-  <span>
-    {typeof previewProduct.mrp === 'string' 
-      ? ((1 - parseFloat(pp.price as string) / parseFloat(previewProduct.mrp)) * 100).toFixed(2)
-      : ((1 - (pp.price as number) / (previewProduct.mrp as number)) * 100).toFixed(2)
-    }%
-  </span>
-</div>
                         </div>
                       );
                     })}
