@@ -53,6 +53,7 @@ interface PricePoint {
   id: string;
   quantity: string | number;
   price: string | number;
+  mrp: string | number;
 }
 
 interface ProductImage {
@@ -83,7 +84,7 @@ const Products = () => {
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
   const [pricePoints, setPricePoints] = useState<PricePoint[]>([
-    { id: Date.now().toString(), quantity: "1", price: "0" }
+    { id: Date.now().toString(), quantity: "1", price: "0", mrp: "0" }
   ]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -184,12 +185,12 @@ const Products = () => {
     }
   };
 
-  const uploadImages = async (files: File[]): Promise<ProductImage[]> => {
+  const uploadImages = async (files: File[]): Promise<string[]> => {
     const formData = new FormData();
     files.forEach(file => {
       formData.append("images[]", file);
     });
-
+  
     try {
       const response = await fetch(`${API_BASE_URL}/multi-upload.php`, {
         method: "POST",
@@ -197,11 +198,7 @@ const Products = () => {
       });
       const data = await response.json();
       if (data.status === "success") {
-        return data.urls.map((url: string, index: number) => ({
-          id: Date.now().toString() + index,
-          image_url: url,
-          display_order: index.toString()
-        }));
+        return data.urls; // Just return the array of URLs
       }
       throw new Error(data.message || "Failed to upload images");
     } catch (error) {
@@ -239,7 +236,7 @@ const Products = () => {
   };
   
   const handleAddPricePoint = () => {
-    setPricePoints([...pricePoints, { id: Date.now().toString(), quantity: "1", price: "0" }]);
+    setPricePoints([...pricePoints, { id: Date.now().toString(), quantity: "1", price: "0", mrp: "0" }]);
   };
   
   const handleChangePricePoint = (
@@ -279,9 +276,10 @@ const Products = () => {
     if (pricePoints.some(pp => {
       const quantity = typeof pp.quantity === 'string' ? parseInt(pp.quantity) : pp.quantity;
       const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
-      return quantity <= 0 || price < 0;
+      const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
+      return quantity <= 0 || price < 0 || mrp < 0 || price > mrp;
     })) {
-      toast.error("Price points must have valid values");
+      toast.error("Price points must have valid values (Price should be ≤ MRP)");
       return;
     }
     
@@ -289,7 +287,7 @@ const Products = () => {
       setIsLoading(true);
       
       // Upload all images at once
-      const uploadedImages = await uploadImages(imageFiles);
+      const uploadedImageUrls = await uploadImages(imageFiles);
       
       const productData = {
         action: "add_product",
@@ -299,9 +297,10 @@ const Products = () => {
         description,
         price_points: pricePoints.map(pp => ({
           quantity: pp.quantity,
-          price: typeof pp.price === 'string' ? parseFloat(pp.price).toFixed(2) : pp.price
+          price: typeof pp.price === 'string' ? parseFloat(pp.price).toFixed(2) : pp.price,
+          mrp: typeof pp.mrp === 'string' ? parseFloat(pp.mrp).toFixed(2) : pp.mrp
         })),
-        images: uploadedImages,
+        images: uploadedImageUrls, // Directly use the array of URLs
       };
       
       const response = await fetch(`${API_BASE_URL}/index.php`, {
@@ -334,7 +333,7 @@ const Products = () => {
     imageUrls.forEach(url => URL.revokeObjectURL(url));
     setImageFiles([]);
     setImageUrls([]);
-    setPricePoints([{ id: Date.now().toString(), quantity: "1", price: "0" }]);
+    setPricePoints([{ id: Date.now().toString(), quantity: "1", price: "0", mrp: "0" }]);
     setCategoryId("");
     setSubcategoryId("");
   };
@@ -382,13 +381,19 @@ const Products = () => {
               pricePoints = ppArray.map((pp: any) => ({
                 id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
                 quantity: pp.quantity || "1",
-                price: pp.price || "0"
+                price: pp.price || "0",
+                mrp: pp.mrp || pp.price || "0"
               }));
             } catch (error) {
               throw new Error(`Invalid price points format: ${error.message}`);
             }
           } else {
-            pricePoints = [{ id: Date.now().toString(), quantity: "1", price: product.price || "0" }];
+            pricePoints = [{
+              id: Date.now().toString(), 
+              quantity: "1", 
+              price: product.price || "0",
+              mrp: product.mrp || product.price || "0"
+            }];
           }
 
           const images = product.imageUrl ? [{
@@ -445,9 +450,9 @@ const Products = () => {
   };
 
   const downloadSampleCSV = () => {
-    const sampleData = `name,description,category,subcategory,price,imageUrl,pricePoints
-"Product 1","This is a sample product","Electronics","Smartphones",599.99,"https://example.com/image1.jpg","[{""quantity"":""1"",""price"":""599.99""},{""quantity"":""5"",""price"":""549.99""}]"
-"Product 2","Another sample product","Clothing","T-shirts",24.99,"https://example.com/image2.jpg","[{""quantity"":""1"",""price"":""24.99""},{""quantity"":""3"",""price"":""19.99""}]"`;
+    const sampleData = `name,description,category,subcategory,price,mrp,imageUrl,pricePoints
+"Product 1","This is a sample product","Electronics","Smartphones",599.99,799.99,"https://example.com/image1.jpg","[{""quantity"":""1"",""price"":""599.99"",""mrp"":""799.99""},{""quantity"":""5"",""price"":""549.99"",""mrp"":""749.99""}]"
+"Product 2","Another sample product","Clothing","T-shirts",24.99,39.99,"https://example.com/image2.jpg","[{""quantity"":""1"",""price"":""24.99"",""mrp"":""39.99""},{""quantity"":""3"",""price"":""19.99"",""mrp"":""34.99""}]"`;
     
     const blob = new Blob([sampleData], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -712,8 +717,8 @@ const Products = () => {
                 </div>
                 
                 {pricePoints.map((pricePoint, index) => (
-                  <div key={pricePoint.id} className="flex gap-2 items-center">
-                    <div className="flex-1">
+                  <div key={pricePoint.id} className="grid grid-cols-3 gap-2 items-center">
+                    <div>
                       <Label className="text-xs">Quantity</Label>
                       <Input
                         type="text"
@@ -730,7 +735,7 @@ const Products = () => {
                       />
                     </div>
                     
-                    <div className="flex-1">
+                    <div>
                       <Label className="text-xs">Price (₹)</Label>
                       <Input
                         type="text"
@@ -746,15 +751,32 @@ const Products = () => {
                         disabled={isLoading}
                       />
                     </div>
+
+                    <div>
+                      <Label className="text-xs">MRP (₹)</Label>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="MRP"
+                        value={pricePoint.mrp}
+                        onChange={(e) => handleChangePricePoint(
+                          index, 
+                          'mrp',
+                          e.target.value
+                        )}
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
                     
-                    <div className="flex items-end">
+                    <div className="col-span-3 flex justify-end">
                       <Button
                         type="button"
                         size="icon"
                         variant="outline"
                         onClick={() => handleRemovePricePoint(index)}
                         disabled={pricePoints.length === 1 || isLoading}
-                        className="flex-shrink-0 mb-[1px]"
+                        className="flex-shrink-0"
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
@@ -867,10 +889,15 @@ const Products = () => {
                             <div className="flex flex-wrap gap-2">
                               {product.price_points && product.price_points.map((pp) => {
                                 const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
+                                const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
                                 return (
-                                  <span key={pp.id} className="text-xs bg-muted px-2 py-1 rounded">
-                                    {pp.quantity} units: ₹{typeof price === 'number' ? price.toFixed(2) : price}
-                                  </span>
+                                  <div key={pp.id} className="text-xs bg-muted px-2 py-1 rounded">
+                                    {pp.quantity} units: 
+                                    <span className="font-medium"> ₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
+                                    {mrp > price && (
+                                      <span className="ml-1 line-through text-muted-foreground">₹{typeof mrp === 'number' ? mrp.toFixed(2) : mrp}</span>
+                                    )}
+                                  </div>
                                 );
                               })}
                             </div>
@@ -944,6 +971,7 @@ const Products = () => {
                   <div className="grid grid-cols-2 gap-2">
                     {previewProduct.price_points && previewProduct.price_points.map((pp) => {
                       const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
+                      const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
                       return (
                         <div key={pp.id} className="bg-muted p-3 rounded-md">
                           <div className="flex justify-between">
@@ -954,6 +982,18 @@ const Products = () => {
                             <span className="font-medium">Price:</span>
                             <span>₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
                           </div>
+                          {mrp > price && (
+                            <div className="flex justify-between mt-1">
+                              <span className="font-medium">MRP:</span>
+                              <span className="line-through">₹{typeof mrp === 'number' ? mrp.toFixed(2) : mrp}</span>
+                            </div>
+                          )}
+                          {mrp > price && (
+                            <div className="flex justify-between mt-1 text-green-600">
+                              <span className="font-medium">Discount:</span>
+                              <span>{Math.round(((mrp - price) / mrp) * 100)}% off</span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
