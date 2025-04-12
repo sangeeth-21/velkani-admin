@@ -9,7 +9,11 @@ import {
   Layers, 
   FolderTree, 
   ShoppingBag,
-  FileText 
+  FileText,
+  BadgePercent,
+  Users,
+  ShoppingCart,
+  Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeSwitcher from "./ThemeSwitcher";
@@ -26,7 +30,10 @@ const AdminLayout: React.FC = () => {
     { name: "Subcategories", path: "/admin/subcategories", icon: <FolderTree size={20} /> },
     { name: "Products", path: "/admin/products", icon: <ShoppingBag size={20} /> },
     { name: "All Products", path: "/admin/allproducts", icon: <ShoppingBag size={20} /> },
-    { name: "Documents", path: "/admin/documents", icon: <FileText size={20} /> }
+    { name: "Offers", path: "/admin/offers", icon: <BadgePercent size={20} /> },
+    { name: "Users", path: "/admin/users", icon: <Users size={20} /> },
+    { name: "Orders", path: "/admin/orders", icon: <ShoppingCart size={20} /> },
+    { name: "Settings", path: "/admin/settings", icon: <Settings size={20} /> }
   ];
 
   const toggleSidebar = () => {

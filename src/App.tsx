@@ -13,8 +13,12 @@ import Dashboard from "./pages/admin/Dashboard";
 import Categories from "./pages/admin/Categories";
 import Subcategories from "./pages/admin/Subcategories";
 import Products from "./pages/admin/Products";
-import AllProducts from "./pages/admin/Allproducts"; // Changed import name to uppercase
+import AllProducts from "./pages/admin/Allproducts";
 import Documents from "./pages/admin/Documents";
+import Offers from "./pages/admin/offer";
+import Users from "./pages/admin/User"; // New import
+import Orders from "./pages/admin/Order"; // New import
+import Settings from "./pages/admin/Settings"; // New import
 import NotFound from "./pages/NotFound";
 
 // Layout
@@ -70,8 +74,12 @@ const App = () => {
                 <Route path="categories" element={<Categories />} />
                 <Route path="subcategories" element={<Subcategories />} />
                 <Route path="products" element={<Products />} />
-                <Route path="Allproducts" element={<AllProducts />} /> {/* Changed to uppercase */}
+                <Route path="Allproducts" element={<AllProducts />} />
                 <Route path="documents" element={<Documents />} />
+                <Route path="offers" element={<Offers />} />
+                <Route path="users" element={<Users />} />
+                <Route path="orders" element={<Orders />} />
+                <Route path="settings" element={<Settings />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
