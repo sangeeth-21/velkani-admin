@@ -18,10 +18,12 @@ import {
   ShoppingBag,
   Plus,
   Minus,
+  BadgePercent,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 
 interface Category {
   id: string;
@@ -46,6 +48,8 @@ interface PricePoint {
   id: string;
   quantity: string | number;
   price: string | number;
+  mrp: string | number;
+  discount_percent: number;
 }
 
 interface ProductImage {
@@ -64,6 +68,7 @@ interface Product {
   price_points: PricePoint[];
   created_at: string;
   updated_at: string;
+  offer: string | null;
 }
 
 const API_BASE_URL = "https://srivelkanistore.site/api";
@@ -80,6 +85,7 @@ const Products = () => {
   const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [updatingOffer, setUpdatingOffer] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -216,7 +222,9 @@ const Products = () => {
           description: editingProduct.description,
           price_points: editingProduct.price_points.map(pp => ({
             quantity: pp.quantity,
-            price: pp.price
+            price: pp.price,
+            mrp: pp.mrp,
+            discount_percent: pp.discount_percent
           })),
           images: editingProduct.images.map(img => ({
             image_url: img.image_url,
@@ -241,13 +249,17 @@ const Products = () => {
     }
   };
 
-  const handlePriceChange = (index: number, field: 'quantity' | 'price', value: string) => {
+  const handlePriceChange = (index: number, field: 'quantity' | 'price' | 'mrp' | 'discount_percent', value: string) => {
     if (!editingProduct) return;
     
     const updatedPricePoints = [...editingProduct.price_points];
     updatedPricePoints[index] = {
       ...updatedPricePoints[index],
-      [field]: field === 'price' ? parseFloat(value) || 0 : parseInt(value) || 1
+      [field]: field === 'price' || field === 'mrp' ? 
+                parseFloat(value) || 0 : 
+                field === 'discount_percent' ? 
+                parseInt(value) || 0 : 
+                parseInt(value) || 1
     };
     
     setEditingProduct({
@@ -263,7 +275,13 @@ const Products = () => {
       ...editingProduct,
       price_points: [
         ...editingProduct.price_points,
-        { id: Date.now().toString(), quantity: 1, price: 0 }
+        { 
+          id: Date.now().toString(), 
+          quantity: 1, 
+          price: 0,
+          mrp: 0,
+          discount_percent: 0
+        }
       ]
     });
   };
@@ -319,6 +337,38 @@ const Products = () => {
     });
   };
 
+  const toggleOfferStatus = async (productId: string, currentStatus: string | null) => {
+    const isCurrentlyInOffer = currentStatus === "1";
+    const action = isCurrentlyInOffer ? "remove_from_offers" : "add_to_offers";
+    
+    try {
+      setUpdatingOffer(productId);
+      const response = await fetch(`${API_BASE_URL}/index.php`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action,
+          product_id: productId
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.status === "success") {
+        toast.success(`Product ${isCurrentlyInOffer ? "removed from" : "added to"} offers`);
+        fetchProducts();
+      } else {
+        toast.error(data.message || `Failed to ${isCurrentlyInOffer ? "remove from" : "add to"} offers`);
+      }
+    } catch (error) {
+      toast.error(`Error ${isCurrentlyInOffer ? "removing from" : "adding to"} offers`);
+      console.error(error);
+    } finally {
+      setUpdatingOffer(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -348,9 +398,15 @@ const Products = () => {
               const primaryImage = product.images && product.images.length > 0 
                 ? product.images[0].image_url 
                 : null;
+              const isInOffer = product.offer === "1";
               
               return (
-                <Card key={product.id}>
+                <Card key={product.id} className="relative">
+                  {isInOffer && (
+                    <div className="absolute top-2 right-2 z-10">
+                      <BadgePercent className="h-6 w-6 text-yellow-500 bg-white rounded-full p-1 shadow-sm" />
+                    </div>
+                  )}
                   <CardContent className="p-4">
                     <div className="flex flex-col gap-4">
                       <div className="flex-shrink-0 w-full aspect-square rounded-md overflow-hidden border border-border">
@@ -419,13 +475,30 @@ const Products = () => {
                           <div className="flex flex-wrap gap-2">
                             {product.price_points && product.price_points.map((pp) => {
                               const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
+                              const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
                               return (
                                 <span key={pp.id} className="text-xs bg-muted px-2 py-1 rounded">
                                   {pp.quantity} units: ₹{typeof price === 'number' ? price.toFixed(2) : price}
+                                  {mrp > price && (
+                                    <span className="line-through text-muted-foreground ml-1">₹{mrp.toFixed(2)}</span>
+                                  )}
                                 </span>
                               );
                             })}
                           </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between">
+                          <Label htmlFor={`offer-toggle-${product.id}`} className="flex items-center gap-2">
+                            <BadgePercent className="h-4 w-4" />
+                            <span>Offer</span>
+                          </Label>
+                          <Switch
+                            id={`offer-toggle-${product.id}`}
+                            checked={isInOffer}
+                            onCheckedChange={() => toggleOfferStatus(product.id, product.offer)}
+                            disabled={updatingOffer === product.id}
+                          />
                         </div>
                       </div>
                     </div>
@@ -496,6 +569,7 @@ const Products = () => {
                   <div className="grid grid-cols-2 gap-2">
                     {previewProduct.price_points && previewProduct.price_points.map((pp) => {
                       const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
+                      const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
                       return (
                         <div key={pp.id} className="bg-muted p-3 rounded-md">
                           <div className="flex justify-between">
@@ -506,9 +580,31 @@ const Products = () => {
                             <span className="font-medium">Price:</span>
                             <span>₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
                           </div>
+                          {mrp > price && (
+                            <div className="flex justify-between mt-1">
+                              <span className="font-medium">MRP:</span>
+                              <span className="line-through">₹{mrp.toFixed(2)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between mt-1">
+                            <span className="font-medium">Discount:</span>
+                            <span>{pp.discount_percent}%</span>
+                          </div>
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground mb-1">Offer Status</h3>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={previewProduct.offer === "1"}
+                      onCheckedChange={() => toggleOfferStatus(previewProduct.id, previewProduct.offer)}
+                      disabled={updatingOffer === previewProduct.id}
+                    />
+                    <span>{previewProduct.offer === "1" ? "In Offers" : "Not in Offers"}</span>
                   </div>
                 </div>
                 
@@ -541,140 +637,166 @@ const Products = () => {
       </Dialog>
 
       {/* Edit Product Dialog */}
-<Dialog open={isEditing} onOpenChange={(open) => !open && setIsEditing(false)}>
-  {editingProduct && (
-    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-      <DialogHeader className="mt-4">
-        <DialogTitle className="text-xl">Edit Product</DialogTitle>
-      </DialogHeader>
-      
-      <div className="grid gap-6 py-4 px-1">
-        <div className="space-y-3">
-          <Label htmlFor="product-name">Product Name</Label>
-          <Input
-            id="product-name"
-            value={editingProduct.name}
-            onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
-            className="mt-1"
-          />
-        </div>
-        
-        <div className="space-y-3">
-          <Label htmlFor="product-description">Description</Label>
-          <Textarea
-            id="product-description"
-            value={editingProduct.description}
-            onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})}
-            rows={4}
-            className="mt-1"
-          />
-        </div>
-        
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <Label className="text-base">Price Points</Label>
-            <Button variant="outline" size="sm" onClick={handleAddPricePoint}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Price Point
-            </Button>
-          </div>
-          
-          <div className="space-y-4">
-            {editingProduct.price_points.map((pp, index) => (
-              <div key={pp.id || index} className="grid grid-cols-3 gap-3 items-end">
-                <div className="space-y-2">
-                  <Label className="text-sm">Quantity</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={pp.quantity}
-                    onChange={(e) => handlePriceChange(index, 'quantity', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Price (₹)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={pp.price}
-                    onChange={(e) => handlePriceChange(index, 'price', e.target.value)}
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10 mb-[0.35rem]"
-                  onClick={() => handleRemovePricePoint(index)}
-                  disabled={editingProduct.price_points.length <= 1}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
+      <Dialog open={isEditing} onOpenChange={(open) => !open && setIsEditing(false)}>
+        {editingProduct && (
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="mt-4">
+              <DialogTitle className="text-xl">Edit Product</DialogTitle>
+            </DialogHeader>
+            
+            <div className="grid gap-6 py-4 px-1">
+              <div className="space-y-3">
+                <Label htmlFor="product-name">Product Name</Label>
+                <Input
+                  id="product-name"
+                  value={editingProduct.name}
+                  onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
+                  className="mt-1"
+                />
               </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <Label className="text-base">Images</Label>
-            <Button variant="outline" size="sm" onClick={handleAddImage}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Image
-            </Button>
-          </div>
-          
-          <div className="space-y-4">
-            {editingProduct.images.map((img, index) => (
-              <div key={img.id || index} className="space-y-3">
-                <div className="flex gap-3 items-end">
-                  <div className="flex-1 space-y-2">
-                    <Label className="text-sm">Image URL {index + 1}</Label>
-                    <Input
-                      value={img.image_url}
-                      onChange={(e) => handleImageUrlChange(index, e.target.value)}
-                      placeholder="https://example.com/image.jpg"
-                    />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10 mb-[0.35rem]"
-                    onClick={() => handleRemoveImage(index)}
-                    disabled={editingProduct.images.length <= 1}
-                  >
-                    <Minus className="h-4 w-4" />
+              
+              <div className="space-y-3">
+                <Label htmlFor="product-description">Description</Label>
+                <Textarea
+                  id="product-description"
+                  value={editingProduct.description}
+                  onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})}
+                  rows={4}
+                  className="mt-1"
+                />
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Label className="text-base">Price Points</Label>
+                  <Button variant="outline" size="sm" onClick={handleAddPricePoint}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Price Point
                   </Button>
                 </div>
-                {img.image_url && (
-                  <div className="mt-1 w-32 h-32 border rounded-md overflow-hidden">
-                    <img
-                      src={img.image_url}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "https://placehold.co/200x200?text=Error";
-                      }}
-                    />
-                  </div>
-                )}
+                
+                <div className="space-y-4">
+                  {editingProduct.price_points.map((pp, index) => (
+                    <div key={pp.id || index} className="grid grid-cols-4 gap-3 items-end">
+                      <div className="space-y-2">
+                        <Label className="text-sm">Quantity</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={pp.quantity}
+                          onChange={(e) => handlePriceChange(index, 'quantity', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">MRP (₹)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={pp.mrp}
+                          onChange={(e) => handlePriceChange(index, 'mrp', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Price (₹)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={pp.price}
+                          onChange={(e) => handlePriceChange(index, 'price', e.target.value)}
+                        />
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10 mb-[0.35rem]"
+                        onClick={() => handleRemovePricePoint(index)}
+                        disabled={editingProduct.price_points.length <= 1}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      
-      <DialogFooter className="mb-4 px-6">
-        <Button variant="outline" onClick={() => setIsEditing(false)}>
-          Cancel
-        </Button>
-        <Button onClick={handleUpdateProduct} disabled={isLoading}>
-          {isLoading ? "Saving..." : "Save Changes"}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  )}
-</Dialog>
+              
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Label className="text-base">Images</Label>
+                  <Button variant="outline" size="sm" onClick={handleAddImage}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Image
+                  </Button>
+                </div>
+                
+                <div className="space-y-4">
+                  {editingProduct.images.map((img, index) => (
+                    <div key={img.id || index} className="space-y-3">
+                      <div className="flex gap-3 items-end">
+                        <div className="flex-1 space-y-2">
+                          <Label className="text-sm">Image URL {index + 1}</Label>
+                          <Input
+                            value={img.image_url}
+                            onChange={(e) => handleImageUrlChange(index, e.target.value)}
+                            placeholder="https://example.com/image.jpg"
+                          />
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-10 w-10 mb-[0.35rem]"
+                          onClick={() => handleRemoveImage(index)}
+                          disabled={editingProduct.images.length <= 1}
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {img.image_url && (
+                        <div className="mt-1 w-32 h-32 border rounded-md overflow-hidden">
+                          <img
+                            src={img.image_url}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "https://placehold.co/200x200?text=Error";
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <BadgePercent className="h-4 w-4" />
+                  <span>Add to Offers</span>
+                </Label>
+                <Switch
+                  checked={editingProduct.offer === "1"}
+                  onCheckedChange={(checked) => {
+                    setEditingProduct({
+                      ...editingProduct,
+                      offer: checked ? "1" : "0"
+                    });
+                  }}
+                />
+              </div>
+            </div>
+            
+            <DialogFooter className="mb-4 px-6">
+              <Button variant="outline" onClick={() => setIsEditing(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateProduct} disabled={isLoading}>
+                {isLoading ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 };
