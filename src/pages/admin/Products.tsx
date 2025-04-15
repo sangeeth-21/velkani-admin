@@ -74,10 +74,6 @@ interface Product {
   updated_at: string;
 }
 
-interface PricePointType {
-  types: string;
-}
-
 const API_BASE_URL = "https://srivelkanistore.site/api";
 
 const Products = () => {
@@ -90,11 +86,11 @@ const Products = () => {
   const [pricePoints, setPricePoints] = useState<PricePoint[]>([
     { 
       id: Date.now().toString(), 
-      quantity: "1", 
+      quantity: "", 
       type: "", 
-      price: "0", 
-      mrp: "0",
-      stock: "0"
+      price: "", 
+      mrp: "",
+      stock: ""
     }
   ]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -103,7 +99,6 @@ const Products = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [pricePointTypes, setPricePointTypes] = useState<PricePointType[]>([]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([]);
@@ -112,7 +107,6 @@ const Products = () => {
     fetchCategories();
     fetchProducts();
     fetchAllSubcategories();
-    fetchPricePointTypes();
   }, []);
 
   useEffect(() => {
@@ -123,21 +117,6 @@ const Products = () => {
       setSubcategories([]);
     }
   }, [categoryId]);
-
-  const fetchPricePointTypes = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/types.php`);
-      const data = await response.json();
-      if (data.status === "success") {
-        setPricePointTypes(data.data);
-      } else {
-        toast.error("Failed to fetch price point types");
-      }
-    } catch (error) {
-      toast.error("Error fetching price point types");
-      console.error(error);
-    }
-  };
 
   const fetchCategories = async () => {
     try {
@@ -265,11 +244,11 @@ const Products = () => {
   const handleAddPricePoint = () => {
     setPricePoints([...pricePoints, { 
       id: Date.now().toString(), 
-      quantity: "1", 
+      quantity: "", 
       type: "", 
-      price: "0", 
-      mrp: "0",
-      stock: "0"
+      price: "", 
+      mrp: "",
+      stock: ""
     }]);
   };
   
@@ -307,15 +286,37 @@ const Products = () => {
       return;
     }
     
-    if (pricePoints.some(pp => {
+    // Validate price points
+    for (const pp of pricePoints) {
+      if (!pp.quantity || !pp.price || !pp.mrp || !pp.stock) {
+        toast.error("Please fill all price point fields");
+        return;
+      }
+      
       const quantity = typeof pp.quantity === 'string' ? parseInt(pp.quantity) : pp.quantity;
       const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
       const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
       const stock = typeof pp.stock === 'string' ? parseInt(pp.stock) : pp.stock;
-      return quantity <= 0 || price < 0 || mrp < 0 || price > mrp || stock < 0;
-    })) {
-      toast.error("Price points must have valid values (Price should be ≤ MRP, Stock ≥ 0)");
-      return;
+      
+      if (isNaN(quantity)) {
+        toast.error("Quantity must be a valid number");
+        return;
+      }
+      
+      if (isNaN(price) || isNaN(mrp)) {
+        toast.error("Price and MRP must be valid numbers");
+        return;
+      }
+      
+      if (price > mrp) {
+        toast.error("Price should be less than or equal to MRP");
+        return;
+      }
+      
+      if (isNaN(stock) || stock < 0) {
+        toast.error("Stock must be a valid positive number");
+        return;
+      }
     }
     
     try {
@@ -372,11 +373,11 @@ const Products = () => {
     setImageUrls([]);
     setPricePoints([{ 
       id: Date.now().toString(), 
-      quantity: "1", 
+      quantity: "", 
       type: "", 
-      price: "0", 
-      mrp: "0",
-      stock: "0"
+      price: "", 
+      mrp: "",
+      stock: ""
     }]);
     setCategoryId("");
     setSubcategoryId("");
@@ -612,22 +613,17 @@ const Products = () => {
                     
                     <div>
                       <Label className="text-xs">Type</Label>
-                      <Select
+                      <Input
+                        type="text"
+                        placeholder="Type (e.g., kg, g, ml)"
                         value={pricePoint.type}
-                        onValueChange={(value) => handleChangePricePoint(index, 'type', value)}
+                        onChange={(e) => handleChangePricePoint(
+                          index, 
+                          'type',
+                          e.target.value
+                        )}
                         disabled={isLoading}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pricePointTypes.map((type) => (
-                            <SelectItem key={type.types} value={type.types}>
-                              {type.types}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
                     </div>
                     
                     <div>

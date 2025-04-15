@@ -24,13 +24,6 @@ import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface Category {
   id: string;
@@ -80,10 +73,6 @@ interface Product {
   offer: string | null;
 }
 
-interface PricePointType {
-  types: string;
-}
-
 const API_BASE_URL = "https://srivelkanistore.site/api";
 
 const Products = () => {
@@ -99,13 +88,11 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [updatingOffer, setUpdatingOffer] = useState<string | null>(null);
-  const [pricePointTypes, setPricePointTypes] = useState<PricePointType[]>([]);
 
   useEffect(() => {
     fetchCategories();
     fetchProducts();
     fetchAllSubcategories();
-    fetchPricePointTypes();
   }, []);
 
   useEffect(() => {
@@ -119,21 +106,6 @@ const Products = () => {
       setFilteredProducts(filtered);
     }
   }, [searchTerm, products]);
-
-  const fetchPricePointTypes = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/types.php`);
-      const data = await response.json();
-      if (data.status === "success") {
-        setPricePointTypes(data.data);
-      } else {
-        toast.error("Failed to fetch price point types");
-      }
-    } catch (error) {
-      toast.error("Error fetching price point types");
-      console.error(error);
-    }
-  };
 
   const fetchCategories = async () => {
     try {
@@ -287,13 +259,7 @@ const Products = () => {
     const updatedPricePoints = [...editingProduct.price_points];
     updatedPricePoints[index] = {
       ...updatedPricePoints[index],
-      [field]: field === 'price' || field === 'mrp' ? 
-                parseFloat(value) || 0 : 
-                field === 'discount_percent' || field === 'stock' ? 
-                parseInt(value) || 0 : 
-                field === 'type' ?
-                value :
-                parseInt(value) || 1
+      [field]: value
     };
     
     setEditingProduct({
@@ -311,11 +277,11 @@ const Products = () => {
         ...editingProduct.price_points,
         { 
           id: Date.now().toString(), 
-          quantity: 1, 
+          quantity: "", 
           type: "",
-          price: 0,
-          mrp: 0,
-          stock: 0,
+          price: "",
+          mrp: "",
+          stock: "",
           discount_percent: 0
         }
       ]
@@ -736,57 +702,46 @@ const Products = () => {
                       <div className="space-y-2">
                         <Label className="text-sm">Quantity</Label>
                         <Input
-                          type="number"
-                          min="1"
+                          type="text"
                           value={pp.quantity}
                           onChange={(e) => handlePriceChange(index, 'quantity', e.target.value)}
+                          placeholder="e.g. 1"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-sm">Type</Label>
-                        <Select
+                        <Input
+                          type="text"
                           value={pp.type}
-                          onValueChange={(value) => handlePriceChange(index, 'type', value)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {pricePointTypes.map((type) => (
-                              <SelectItem key={type.types} value={type.types}>
-                                {type.types}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          onChange={(e) => handlePriceChange(index, 'type', e.target.value)}
+                          placeholder="e.g. kg, g, ml"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-sm">MRP (₹)</Label>
                         <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
                           value={pp.mrp}
                           onChange={(e) => handlePriceChange(index, 'mrp', e.target.value)}
+                          placeholder="e.g. 100.00"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-sm">Price (₹)</Label>
                         <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
                           value={pp.price}
                           onChange={(e) => handlePriceChange(index, 'price', e.target.value)}
+                          placeholder="e.g. 90.00"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-sm">Stock</Label>
                         <Input
-                          type="number"
-                          min="0"
+                          type="text"
                           value={pp.stock}
                           onChange={(e) => handlePriceChange(index, 'stock', e.target.value)}
+                          placeholder="e.g. 50"
                         />
                       </div>
                       <Button
