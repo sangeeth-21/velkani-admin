@@ -24,6 +24,13 @@ import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Category {
   id: string;
@@ -47,8 +54,10 @@ interface Subcategory {
 interface PricePoint {
   id: string;
   quantity: string | number;
+  type: string;
   price: string | number;
   mrp: string | number;
+  stock: string | number;
   discount_percent: number;
 }
 
@@ -71,6 +80,10 @@ interface Product {
   offer: string | null;
 }
 
+interface PricePointType {
+  types: string;
+}
+
 const API_BASE_URL = "https://srivelkanistore.site/api";
 
 const Products = () => {
@@ -86,11 +99,13 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [updatingOffer, setUpdatingOffer] = useState<string | null>(null);
+  const [pricePointTypes, setPricePointTypes] = useState<PricePointType[]>([]);
 
   useEffect(() => {
     fetchCategories();
     fetchProducts();
     fetchAllSubcategories();
+    fetchPricePointTypes();
   }, []);
 
   useEffect(() => {
@@ -104,6 +119,21 @@ const Products = () => {
       setFilteredProducts(filtered);
     }
   }, [searchTerm, products]);
+
+  const fetchPricePointTypes = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/types.php`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setPricePointTypes(data.data);
+      } else {
+        toast.error("Failed to fetch price point types");
+      }
+    } catch (error) {
+      toast.error("Error fetching price point types");
+      console.error(error);
+    }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -222,8 +252,10 @@ const Products = () => {
           description: editingProduct.description,
           price_points: editingProduct.price_points.map(pp => ({
             quantity: pp.quantity,
+            type: pp.type,
             price: pp.price,
             mrp: pp.mrp,
+            stock: pp.stock,
             discount_percent: pp.discount_percent
           })),
           images: editingProduct.images.map(img => ({
@@ -249,7 +281,7 @@ const Products = () => {
     }
   };
 
-  const handlePriceChange = (index: number, field: 'quantity' | 'price' | 'mrp' | 'discount_percent', value: string) => {
+  const handlePriceChange = (index: number, field: 'quantity' | 'price' | 'mrp' | 'discount_percent' | 'type' | 'stock', value: string) => {
     if (!editingProduct) return;
     
     const updatedPricePoints = [...editingProduct.price_points];
@@ -257,8 +289,10 @@ const Products = () => {
       ...updatedPricePoints[index],
       [field]: field === 'price' || field === 'mrp' ? 
                 parseFloat(value) || 0 : 
-                field === 'discount_percent' ? 
+                field === 'discount_percent' || field === 'stock' ? 
                 parseInt(value) || 0 : 
+                field === 'type' ?
+                value :
                 parseInt(value) || 1
     };
     
@@ -278,8 +312,10 @@ const Products = () => {
         { 
           id: Date.now().toString(), 
           quantity: 1, 
+          type: "",
           price: 0,
           mrp: 0,
+          stock: 0,
           discount_percent: 0
         }
       ]
@@ -463,8 +499,8 @@ const Products = () => {
                             </span>
                           )}
                           <span className="text-xs bg-secondary/10 text-secondary px-2 py-1 rounded-full">
-                            {getSubcategoryName(product.subcategory_id)}
-                          </span>
+                              {getSubcategoryName(product.subcategory_id)}
+                            </span>
                         </div>
                         <div className="mt-2 text-sm text-muted-foreground line-clamp-2">
                           {product.description}
@@ -476,12 +512,14 @@ const Products = () => {
                             {product.price_points && product.price_points.map((pp) => {
                               const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
                               const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
+                              const stock = typeof pp.stock === 'string' ? parseInt(pp.stock) : pp.stock;
                               return (
                                 <span key={pp.id} className="text-xs bg-muted px-2 py-1 rounded">
-                                  {pp.quantity} units: ₹{typeof price === 'number' ? price.toFixed(2) : price}
+                                  {pp.quantity} {pp.type ? `(${pp.type})` : ''}: ₹{typeof price === 'number' ? price.toFixed(2) : price}
                                   {mrp > price && (
                                     <span className="line-through text-muted-foreground ml-1">₹{mrp.toFixed(2)}</span>
                                   )}
+                                  <span className="ml-1 text-muted-foreground">| Stock: {stock}</span>
                                 </span>
                               );
                             })}
@@ -513,15 +551,15 @@ const Products = () => {
       {/* Product Preview Dialog */}
       <Dialog open={!!previewProduct} onOpenChange={(open) => !open && setPreviewProduct(null)}>
         {previewProduct && (
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="pt-6">
               <DialogTitle className="text-xl">{previewProduct.name}</DialogTitle>
             </DialogHeader>
             
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-6 py-4 px-6">
               {/* Product Images */}
               {previewProduct.images && previewProduct.images.length > 0 ? (
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-4 gap-4">
                   {previewProduct.images
                     .sort((a, b) => parseInt(a.display_order) - parseInt(b.display_order))
                     .map((image) => (
@@ -544,9 +582,9 @@ const Products = () => {
               )}
               
               {/* Product Details */}
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div>
-                  <h3 className="font-medium text-sm text-muted-foreground mb-1">Category</h3>
+                  <h3 className="font-medium text-sm text-muted-foreground mb-2">Category</h3>
                   <div className="flex gap-2">
                     {categories.find(c => c.id === previewProduct.category_id) && (
                       <span className="text-sm bg-primary/10 text-primary px-2 py-1 rounded-full">
@@ -560,35 +598,50 @@ const Products = () => {
                 </div>
                 
                 <div>
-                  <h3 className="font-medium text-sm text-muted-foreground mb-1">Description</h3>
+                  <h3 className="font-medium text-sm text-muted-foreground mb-2">Description</h3>
                   <p className="text-sm">{previewProduct.description}</p>
                 </div>
                 
                 <div>
-                  <h3 className="font-medium text-sm text-muted-foreground mb-1">Price Points</h3>
-                  <div className="grid grid-cols-2 gap-2">
+                  <h3 className="font-medium text-sm text-muted-foreground mb-2">Price Points</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {previewProduct.price_points && previewProduct.price_points.map((pp) => {
                       const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
                       const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
+                      const stock = typeof pp.stock === 'string' ? parseInt(pp.stock) : pp.stock;
                       return (
-                        <div key={pp.id} className="bg-muted p-3 rounded-md">
-                          <div className="flex justify-between">
-                            <span className="font-medium">Quantity:</span>
-                            <span>{pp.quantity}</span>
-                          </div>
-                          <div className="flex justify-between mt-1">
-                            <span className="font-medium">Price:</span>
-                            <span>₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
-                          </div>
-                          {mrp > price && (
-                            <div className="flex justify-between mt-1">
-                              <span className="font-medium">MRP:</span>
-                              <span className="line-through">₹{mrp.toFixed(2)}</span>
+                        <div key={pp.id} className="bg-muted p-4 rounded-md">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <div className="flex justify-between">
+                                <span className="font-medium">Quantity:</span>
+                                <span>{pp.quantity} {pp.type ? `(${pp.type})` : ''}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium">Price:</span>
+                                <span>₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
+                              </div>
                             </div>
-                          )}
-                          <div className="flex justify-between mt-1">
-                            <span className="font-medium">Discount:</span>
-                            <span>{pp.discount_percent}%</span>
+                            <div className="space-y-2">
+                              {mrp > price && (
+                                <div className="flex justify-between">
+                                  <span className="font-medium">MRP:</span>
+                                  <span className="line-through">₹{mrp.toFixed(2)}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between">
+                                <span className="font-medium">Stock:</span>
+                                <span className={stock <= 0 ? "text-red-500" : ""}>
+                                  {stock} {stock <= 0 ? "(Out of Stock)" : ""}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 pt-3 border-t">
+                            <div className="flex justify-between">
+                              <span className="font-medium">Discount:</span>
+                              <span className="text-green-600">{pp.discount_percent}% off</span>
+                            </div>
                           </div>
                         </div>
                       );
@@ -596,42 +649,44 @@ const Products = () => {
                   </div>
                 </div>
                 
-                <div>
-                  <h3 className="font-medium text-sm text-muted-foreground mb-1">Offer Status</h3>
-                  <div className="flex items-center gap-2">
+                <div className="py-4 border-t">
+                  <h3 className="font-medium text-sm text-muted-foreground mb-2">Offer Status</h3>
+                  <div className="flex items-center gap-3">
                     <Switch
                       checked={previewProduct.offer === "1"}
                       onCheckedChange={() => toggleOfferStatus(previewProduct.id, previewProduct.offer)}
                       disabled={updatingOffer === previewProduct.id}
                     />
-                    <span>{previewProduct.offer === "1" ? "In Offers" : "Not in Offers"}</span>
+                    <span className="text-sm">{previewProduct.offer === "1" ? "Currently in Offers" : "Not in Offers"}</span>
                   </div>
                 </div>
                 
-                <div>
-                  <h3 className="font-medium text-sm text-muted-foreground mb-1">Created</h3>
-                  <p className="text-sm">
-                    {new Date(previewProduct.created_at).toLocaleString()}
-                  </p>
-                </div>
-                
-                {previewProduct.updated_at !== previewProduct.created_at && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
                   <div>
-                    <h3 className="font-medium text-sm text-muted-foreground mb-1">Last Updated</h3>
+                    <h3 className="font-medium text-sm text-muted-foreground mb-2">Created</h3>
                     <p className="text-sm">
-                      {new Date(previewProduct.updated_at).toLocaleString()}
+                      {new Date(previewProduct.created_at).toLocaleString()}
                     </p>
                   </div>
-                )}
+                  
+                  {previewProduct.updated_at !== previewProduct.created_at && (
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground mb-2">Last Updated</h3>
+                      <p className="text-sm">
+                        {new Date(previewProduct.updated_at).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             
-            <div className="flex justify-end">
+            <DialogFooter className="sticky bottom-0 bg-background border-t p-4">
               <Button variant="outline" onClick={() => setPreviewProduct(null)}>
                 <X className="h-4 w-4 mr-2" />
                 Close
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         )}
       </Dialog>
@@ -644,7 +699,7 @@ const Products = () => {
               <DialogTitle className="text-xl">Edit Product</DialogTitle>
             </DialogHeader>
             
-            <div className="grid gap-6 py-4 px-1">
+            <div className="grid gap-6 py-4 px-6">
               <div className="space-y-3">
                 <Label htmlFor="product-name">Product Name</Label>
                 <Input
@@ -677,7 +732,7 @@ const Products = () => {
                 
                 <div className="space-y-4">
                   {editingProduct.price_points.map((pp, index) => (
-                    <div key={pp.id || index} className="grid grid-cols-4 gap-3 items-end">
+                    <div key={pp.id || index} className="grid grid-cols-6 gap-3 items-end">
                       <div className="space-y-2">
                         <Label className="text-sm">Quantity</Label>
                         <Input
@@ -686,6 +741,24 @@ const Products = () => {
                           value={pp.quantity}
                           onChange={(e) => handlePriceChange(index, 'quantity', e.target.value)}
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Type</Label>
+                        <Select
+                          value={pp.type}
+                          onValueChange={(value) => handlePriceChange(index, 'type', value)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {pricePointTypes.map((type) => (
+                              <SelectItem key={type.types} value={type.types}>
+                                {type.types}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label className="text-sm">MRP (₹)</Label>
@@ -705,6 +778,15 @@ const Products = () => {
                           step="0.01"
                           value={pp.price}
                           onChange={(e) => handlePriceChange(index, 'price', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Stock</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={pp.stock}
+                          onChange={(e) => handlePriceChange(index, 'stock', e.target.value)}
                         />
                       </div>
                       <Button
@@ -769,7 +851,7 @@ const Products = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between py-4 border-t">
                 <Label className="flex items-center gap-2">
                   <BadgePercent className="h-4 w-4" />
                   <span>Add to Offers</span>
@@ -786,7 +868,7 @@ const Products = () => {
               </div>
             </div>
             
-            <DialogFooter className="mb-4 px-6">
+            <DialogFooter className="sticky bottom-0 bg-background border-t p-4">
               <Button variant="outline" onClick={() => setIsEditing(false)}>
                 Cancel
               </Button>

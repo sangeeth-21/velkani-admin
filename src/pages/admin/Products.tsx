@@ -17,8 +17,6 @@ import {
   Upload,
   Trash,
   ShoppingBag,
-  Import,
-  Download,
   Eye,
   X,
 } from "lucide-react";
@@ -52,8 +50,10 @@ interface Subcategory {
 interface PricePoint {
   id: string;
   quantity: string | number;
+  type: string;
   price: string | number;
   mrp: string | number;
+  stock: string | number;
 }
 
 interface ProductImage {
@@ -74,6 +74,10 @@ interface Product {
   updated_at: string;
 }
 
+interface PricePointType {
+  types: string;
+}
+
 const API_BASE_URL = "https://srivelkanistore.site/api";
 
 const Products = () => {
@@ -84,7 +88,14 @@ const Products = () => {
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
   const [pricePoints, setPricePoints] = useState<PricePoint[]>([
-    { id: Date.now().toString(), quantity: "1", price: "0", mrp: "0" }
+    { 
+      id: Date.now().toString(), 
+      quantity: "1", 
+      type: "", 
+      price: "0", 
+      mrp: "0",
+      stock: "0"
+    }
   ]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -92,15 +103,16 @@ const Products = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [pricePointTypes, setPricePointTypes] = useState<PricePointType[]>([]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const csvInputRef = useRef<HTMLInputElement>(null);
   const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([]);
 
   useEffect(() => {
     fetchCategories();
     fetchProducts();
     fetchAllSubcategories();
+    fetchPricePointTypes();
   }, []);
 
   useEffect(() => {
@@ -111,6 +123,21 @@ const Products = () => {
       setSubcategories([]);
     }
   }, [categoryId]);
+
+  const fetchPricePointTypes = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/types.php`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setPricePointTypes(data.data);
+      } else {
+        toast.error("Failed to fetch price point types");
+      }
+    } catch (error) {
+      toast.error("Error fetching price point types");
+      console.error(error);
+    }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -198,7 +225,7 @@ const Products = () => {
       });
       const data = await response.json();
       if (data.status === "success") {
-        return data.urls; // Just return the array of URLs
+        return data.urls;
       }
       throw new Error(data.message || "Failed to upload images");
     } catch (error) {
@@ -236,7 +263,14 @@ const Products = () => {
   };
   
   const handleAddPricePoint = () => {
-    setPricePoints([...pricePoints, { id: Date.now().toString(), quantity: "1", price: "0", mrp: "0" }]);
+    setPricePoints([...pricePoints, { 
+      id: Date.now().toString(), 
+      quantity: "1", 
+      type: "", 
+      price: "0", 
+      mrp: "0",
+      stock: "0"
+    }]);
   };
   
   const handleChangePricePoint = (
@@ -277,9 +311,10 @@ const Products = () => {
       const quantity = typeof pp.quantity === 'string' ? parseInt(pp.quantity) : pp.quantity;
       const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
       const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
-      return quantity <= 0 || price < 0 || mrp < 0 || price > mrp;
+      const stock = typeof pp.stock === 'string' ? parseInt(pp.stock) : pp.stock;
+      return quantity <= 0 || price < 0 || mrp < 0 || price > mrp || stock < 0;
     })) {
-      toast.error("Price points must have valid values (Price should be ≤ MRP)");
+      toast.error("Price points must have valid values (Price should be ≤ MRP, Stock ≥ 0)");
       return;
     }
     
@@ -297,10 +332,12 @@ const Products = () => {
         description,
         price_points: pricePoints.map(pp => ({
           quantity: pp.quantity,
+          type: pp.type,
           price: typeof pp.price === 'string' ? parseFloat(pp.price).toFixed(2) : pp.price,
-          mrp: typeof pp.mrp === 'string' ? parseFloat(pp.mrp).toFixed(2) : pp.mrp
+          mrp: typeof pp.mrp === 'string' ? parseFloat(pp.mrp).toFixed(2) : pp.mrp,
+          stock: typeof pp.stock === 'string' ? parseInt(pp.stock) : pp.stock
         })),
-        images: uploadedImageUrls, // Directly use the array of URLs
+        images: uploadedImageUrls,
       };
       
       const response = await fetch(`${API_BASE_URL}/index.php`, {
@@ -333,161 +370,16 @@ const Products = () => {
     imageUrls.forEach(url => URL.revokeObjectURL(url));
     setImageFiles([]);
     setImageUrls([]);
-    setPricePoints([{ id: Date.now().toString(), quantity: "1", price: "0", mrp: "0" }]);
+    setPricePoints([{ 
+      id: Date.now().toString(), 
+      quantity: "1", 
+      type: "", 
+      price: "0", 
+      mrp: "0",
+      stock: "0"
+    }]);
     setCategoryId("");
     setSubcategoryId("");
-  };
-
-  const handleCSVImportClick = () => {
-    if (csvInputRef.current) {
-      csvInputRef.current.click();
-    }
-  };
-
-  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    
-    const file = e.target.files[0];
-    if (file.type !== "text/csv" && !file.name.endsWith('.csv')) {
-      toast.error("Please upload a valid CSV file");
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      const productsToImport = parseCSV(text);
-      
-      let importCount = 0;
-      let errorCount = 0;
-
-      for (const product of productsToImport) {
-        try {
-          const category = categories.find(c => c.name === product.category);
-          if (!category) {
-            throw new Error(`Category '${product.category}' not found`);
-          }
-
-          const subcategory = subcategories.find(
-            s => s.name === product.subcategory && s.category_id === category.id
-          );
-          if (!subcategory) {
-            throw new Error(`Subcategory '${product.subcategory}' not found for category '${product.category}'`);
-          }
-
-          let pricePoints: PricePoint[] = [];
-          if (product.pricePoints) {
-            try {
-              const ppArray = JSON.parse(product.pricePoints);
-              pricePoints = ppArray.map((pp: any) => ({
-                id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                quantity: pp.quantity || "1",
-                price: pp.price || "0",
-                mrp: pp.mrp || pp.price || "0"
-              }));
-            } catch (error) {
-              throw new Error(`Invalid price points format: ${error.message}`);
-            }
-          } else {
-            pricePoints = [{
-              id: Date.now().toString(), 
-              quantity: "1", 
-              price: product.price || "0",
-              mrp: product.mrp || product.price || "0"
-            }];
-          }
-
-          const images = product.imageUrl ? [{
-            id: Date.now().toString(),
-            image_url: product.imageUrl,
-            display_order: "0"
-          }] : [];
-
-          const productData = {
-            action: "add_product",
-            category_id: category.id,
-            subcategory_id: subcategory.id,
-            name: product.name || 'Unnamed Product',
-            description: product.description || '',
-            price_points: pricePoints,
-            images: images,
-          };
-          
-          const response = await fetch(`${API_BASE_URL}/index.php`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(productData),
-          });
-          
-          const data = await response.json();
-          if (data.status !== "success") {
-            throw new Error(data.message || "Failed to add product via API");
-          }
-
-          importCount++;
-        } catch (error) {
-          errorCount++;
-          console.error(`Error importing product '${product.name}': ${error.message}`);
-        }
-      }
-
-      if (importCount > 0) {
-        toast.success(`Successfully imported ${importCount} products`);
-        fetchProducts();
-      }
-      
-      if (errorCount > 0) {
-        toast.warning(`Failed to import ${errorCount} products. Check console for details.`);
-      }
-
-      if (csvInputRef.current) {
-        csvInputRef.current.value = '';
-      }
-    } catch (error) {
-      toast.error(`Failed to parse CSV: ${error.message}`);
-    }
-  };
-
-  const downloadSampleCSV = () => {
-    const sampleData = `name,description,category,subcategory,price,mrp,imageUrl,pricePoints
-"Product 1","This is a sample product","Electronics","Smartphones",599.99,799.99,"https://example.com/image1.jpg","[{""quantity"":""1"",""price"":""599.99"",""mrp"":""799.99""},{""quantity"":""5"",""price"":""549.99"",""mrp"":""749.99""}]"
-"Product 2","Another sample product","Clothing","T-shirts",24.99,39.99,"https://example.com/image2.jpg","[{""quantity"":""1"",""price"":""24.99"",""mrp"":""39.99""},{""quantity"":""3"",""price"":""19.99"",""mrp"":""34.99""}]"`;
-    
-    const blob = new Blob([sampleData], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'sample-products.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast.success("Sample CSV file downloaded");
-  };
-
-  const parseCSV = (csvText: string): any[] => {
-    const lines = csvText.split('\n');
-    if (lines.length < 2) return [];
-    
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    const result = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
-      
-      const currentLine = lines[i].split(',');
-      const obj: any = {};
-      
-      for (let j = 0; j < headers.length; j++) {
-        obj[headers[j]] = currentLine[j] ? currentLine[j].trim().replace(/"/g, '') : '';
-      }
-      
-      result.push(obj);
-    }
-    
-    return result;
   };
 
   const getSubcategoryName = (subcategoryId: string) => {
@@ -532,26 +424,9 @@ const Products = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Products</h1>
-        <div className="flex gap-2">
-          <Button onClick={handleCSVImportClick} variant="outline" disabled={isLoading}>
-            <Import className="mr-2 h-4 w-4" />
-            Import CSV
-          </Button>
-          <input 
-            type="file" 
-            ref={csvInputRef}
-            onChange={handleCSVImport}
-            accept=".csv" 
-            className="hidden" 
-          />
-          <Button onClick={downloadSampleCSV} variant="secondary" disabled={isLoading}>
-            <Download className="mr-2 h-4 w-4" />
-            Download Sample CSV
-          </Button>
-        </div>
       </div>
       
       <div className="grid gap-6 lg:grid-cols-2">
@@ -717,7 +592,7 @@ const Products = () => {
                 </div>
                 
                 {pricePoints.map((pricePoint, index) => (
-                  <div key={pricePoint.id} className="grid grid-cols-3 gap-2 items-center">
+                  <div key={pricePoint.id} className="grid grid-cols-5 gap-2 items-center">
                     <div>
                       <Label className="text-xs">Quantity</Label>
                       <Input
@@ -733,6 +608,26 @@ const Products = () => {
                         required
                         disabled={isLoading}
                       />
+                    </div>
+                    
+                    <div>
+                      <Label className="text-xs">Type</Label>
+                      <Select
+                        value={pricePoint.type}
+                        onValueChange={(value) => handleChangePricePoint(index, 'type', value)}
+                        disabled={isLoading}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pricePointTypes.map((type) => (
+                            <SelectItem key={type.types} value={type.types}>
+                              {type.types}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     
                     <div>
@@ -769,7 +664,24 @@ const Products = () => {
                       />
                     </div>
                     
-                    <div className="col-span-3 flex justify-end">
+                    <div>
+                      <Label className="text-xs">Stock</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="Stock"
+                        value={pricePoint.stock}
+                        onChange={(e) => handleChangePricePoint(
+                          index, 
+                          'stock',
+                          e.target.value
+                        )}
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
+                    
+                    <div className="col-span-5 flex justify-end">
                       <Button
                         type="button"
                         size="icon"
@@ -820,7 +732,7 @@ const Products = () => {
           ) : products.length === 0 ? (
             <p className="text-muted-foreground">No products added yet.</p>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid gap-4 max-h-[calc(100vh-200px)] overflow-y-auto pb-4">
               {products.map((product) => {
                 const category = categories.find(c => c.id === product.category_id);
                 const primaryImage = product.images && product.images.length > 0 
@@ -890,13 +802,15 @@ const Products = () => {
                               {product.price_points && product.price_points.map((pp) => {
                                 const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
                                 const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
+                                const stock = typeof pp.stock === 'string' ? parseInt(pp.stock) : pp.stock;
                                 return (
                                   <div key={pp.id} className="text-xs bg-muted px-2 py-1 rounded">
-                                    {pp.quantity} units: 
+                                    {pp.quantity} {pp.type ? `(${pp.type})` : ''}: 
                                     <span className="font-medium"> ₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
                                     {mrp > price && (
                                       <span className="ml-1 line-through text-muted-foreground">₹{typeof mrp === 'number' ? mrp.toFixed(2) : mrp}</span>
                                     )}
+                                    <span className="ml-1 text-muted-foreground">| Stock: {stock}</span>
                                   </div>
                                 );
                               })}
@@ -912,10 +826,11 @@ const Products = () => {
           )}
         </div>
       </div>
+      
       {/* Product Preview Dialog */}
       <Dialog open={!!previewProduct} onOpenChange={(open) => !open && setPreviewProduct(null)}>
         {previewProduct && (
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-xl">{previewProduct.name}</DialogTitle>
             </DialogHeader>
@@ -972,11 +887,12 @@ const Products = () => {
                     {previewProduct.price_points && previewProduct.price_points.map((pp) => {
                       const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
                       const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
+                      const stock = typeof pp.stock === 'string' ? parseInt(pp.stock) : pp.stock;
                       return (
                         <div key={pp.id} className="bg-muted p-3 rounded-md">
                           <div className="flex justify-between">
                             <span className="font-medium">Quantity:</span>
-                            <span>{pp.quantity}</span>
+                            <span>{pp.quantity} {pp.type ? `(${pp.type})` : ''}</span>
                           </div>
                           <div className="flex justify-between mt-1">
                             <span className="font-medium">Price:</span>
@@ -994,6 +910,12 @@ const Products = () => {
                               <span>{Math.round(((mrp - price) / mrp) * 100)}% off</span>
                             </div>
                           )}
+                          <div className="flex justify-between mt-1">
+                            <span className="font-medium">Stock:</span>
+                            <span className={stock <= 0 ? "text-red-500" : ""}>
+                              {stock} {stock <= 0 ? "(Out of Stock)" : ""}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}
@@ -1018,7 +940,7 @@ const Products = () => {
               </div>
             </div>
             
-            <div className="flex justify-end">
+            <div className="flex justify-end sticky bottom-0 bg-background pt-4 pb-2">
               <Button variant="outline" onClick={() => setPreviewProduct(null)}>
                 <X className="h-4 w-4 mr-2" />
                 Close
