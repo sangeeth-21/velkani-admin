@@ -19,6 +19,7 @@ import {
   ShoppingBag,
   Eye,
   X,
+  ShoppingCart,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -26,6 +27,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 interface Category {
@@ -74,6 +76,17 @@ interface Product {
   updated_at: string;
 }
 
+interface CartItem {
+  productId: string;
+  pricePointId: string;
+  quantity: number;
+  price: number;
+  mrp: number;
+  name: string;
+  image: string;
+  pricePointLabel: string;
+}
+
 const API_BASE_URL = "https://srivelkanistore.site/api";
 
 const Products = () => {
@@ -99,6 +112,11 @@ const Products = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedPricePoint, setSelectedPricePoint] = useState<PricePoint | null>(null);
+  const [addToCartQuantity, setAddToCartQuantity] = useState(1);
+  const [showAddToCartDialog, setShowAddToCartDialog] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([]);
@@ -107,6 +125,7 @@ const Products = () => {
     fetchCategories();
     fetchProducts();
     fetchAllSubcategories();
+    loadCartFromLocalStorage();
   }, []);
 
   useEffect(() => {
@@ -117,6 +136,21 @@ const Products = () => {
       setSubcategories([]);
     }
   }, [categoryId]);
+
+  useEffect(() => {
+    saveCartToLocalStorage();
+  }, [cart]);
+
+  const loadCartFromLocalStorage = () => {
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+      setCart(JSON.parse(savedCart));
+    }
+  };
+
+  const saveCartToLocalStorage = () => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  };
 
   const fetchCategories = async () => {
     try {
@@ -413,6 +447,8 @@ const Products = () => {
       if (data.status === "success") {
         toast.success("Product deleted successfully");
         fetchProducts();
+        // Remove from cart if exists
+        setCart(cart.filter(item => item.productId !== productId));
       } else {
         toast.error(data.message || "Failed to delete product");
       }
@@ -424,10 +460,95 @@ const Products = () => {
     }
   };
 
+  const handleAddToCartClick = (product: Product, pricePoint: PricePoint) => {
+    setSelectedProduct(product);
+    setSelectedPricePoint(pricePoint);
+    setAddToCartQuantity(1);
+    setShowAddToCartDialog(true);
+  };
+
+  const confirmAddToCart = () => {
+    if (!selectedProduct || !selectedPricePoint) return;
+    
+    const quantity = addToCartQuantity;
+    const price = typeof selectedPricePoint.price === 'string' 
+      ? parseFloat(selectedPricePoint.price) 
+      : selectedPricePoint.price;
+    const mrp = typeof selectedPricePoint.mrp === 'string' 
+      ? parseFloat(selectedPricePoint.mrp) 
+      : selectedPricePoint.mrp;
+    const stock = typeof selectedPricePoint.stock === 'string' 
+      ? parseInt(selectedPricePoint.stock) 
+      : selectedPricePoint.stock;
+    
+    if (quantity <= 0) {
+      toast.error("Quantity must be at least 1");
+      return;
+    }
+    
+    if (quantity > stock) {
+      toast.error(`Only ${stock} items available in stock`);
+      return;
+    }
+    
+    const primaryImage = selectedProduct.images && selectedProduct.images.length > 0 
+      ? selectedProduct.images[0].image_url 
+      : "";
+    
+    const pricePointLabel = `${selectedPricePoint.quantity} ${selectedPricePoint.type ? `(${selectedPricePoint.type})` : ''}`;
+    
+    const existingItemIndex = cart.findIndex(
+      item => item.productId === selectedProduct.id && item.pricePointId === selectedPricePoint.id
+    );
+    
+    if (existingItemIndex >= 0) {
+      // Update existing item
+      const updatedCart = [...cart];
+      updatedCart[existingItemIndex] = {
+        ...updatedCart[existingItemIndex],
+        quantity: updatedCart[existingItemIndex].quantity + quantity
+      };
+      setCart(updatedCart);
+    } else {
+      // Add new item
+      const newItem: CartItem = {
+        productId: selectedProduct.id,
+        pricePointId: selectedPricePoint.id,
+        quantity,
+        price,
+        mrp,
+        name: selectedProduct.name,
+        image: primaryImage,
+        pricePointLabel
+      };
+      setCart([...cart, newItem]);
+    }
+    
+    toast.success(`${quantity} ${quantity === 1 ? 'item' : 'items'} added to cart`);
+    setShowAddToCartDialog(false);
+  };
+
+  const getCartItemCount = () => {
+    return cart.reduce((total, item) => total + item.quantity, 0);
+  };
+
   return (
     <div className="space-y-6 p-4">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Products</h1>
+        <Button 
+          variant="outline" 
+          className="relative"
+          onClick={() => window.location.href = '/cart'}
+        >
+          <ShoppingCart className="h-5 w-5 mr-2" />
+          Cart
+          {cart.length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+              {getCartItemCount()}
+            </span>
+          )}
+        </Button>
       </div>
       
       <div className="grid gap-6 lg:grid-cols-2">
@@ -721,7 +842,22 @@ const Products = () => {
         
         {/* Products List */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Existing Products</h2>
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Existing Products</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {products.length} products
+              </span>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={fetchProducts}
+                disabled={isLoading}
+              >
+                Refresh
+              </Button>
+            </div>
+          </div>
           
           {isLoading && products.length === 0 ? (
             <p className="text-muted-foreground">Loading products...</p>
@@ -799,14 +935,27 @@ const Products = () => {
                                 const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
                                 const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
                                 const stock = typeof pp.stock === 'string' ? parseInt(pp.stock) : pp.stock;
+                                const isOutOfStock = stock <= 0;
+                                
                                 return (
-                                  <div key={pp.id} className="text-xs bg-muted px-2 py-1 rounded">
-                                    {pp.quantity} {pp.type ? `(${pp.type})` : ''}: 
-                                    <span className="font-medium"> ₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
-                                    {mrp > price && (
-                                      <span className="ml-1 line-through text-muted-foreground">₹{typeof mrp === 'number' ? mrp.toFixed(2) : mrp}</span>
+                                  <div 
+                                    key={pp.id} 
+                                    className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${isOutOfStock ? 'bg-red-100 text-red-800' : 'bg-muted hover:bg-muted/80 cursor-pointer'}`}
+                                    onClick={() => !isOutOfStock && handleAddToCartClick(product, pp)}
+                                  >
+                                    <span>
+                                      {pp.quantity} {pp.type ? `(${pp.type})` : ''}: 
+                                      <span className="font-medium"> ₹{typeof price === 'number' ? price.toFixed(2) : price}</span>
+                                      {mrp > price && (
+                                        <span className="ml-1 line-through text-muted-foreground">₹{typeof mrp === 'number' ? mrp.toFixed(2) : mrp}</span>
+                                      )}
+                                      <span className="ml-1 text-muted-foreground">| Stock: {stock}</span>
+                                    </span>
+                                    {isOutOfStock ? (
+                                      <span className="text-red-600">(Out of Stock)</span>
+                                    ) : (
+                                      <ShoppingCart className="h-3 w-3" />
                                     )}
-                                    <span className="ml-1 text-muted-foreground">| Stock: {stock}</span>
                                   </div>
                                 );
                               })}
@@ -884,8 +1033,14 @@ const Products = () => {
                       const price = typeof pp.price === 'string' ? parseFloat(pp.price) : pp.price;
                       const mrp = typeof pp.mrp === 'string' ? parseFloat(pp.mrp) : pp.mrp;
                       const stock = typeof pp.stock === 'string' ? parseInt(pp.stock) : pp.stock;
+                      const isOutOfStock = stock <= 0;
+                      
                       return (
-                        <div key={pp.id} className="bg-muted p-3 rounded-md">
+                        <div 
+                          key={pp.id} 
+                          className={`bg-muted p-3 rounded-md ${!isOutOfStock ? 'hover:bg-muted/80 cursor-pointer' : ''}`}
+                          onClick={() => !isOutOfStock && handleAddToCartClick(previewProduct, pp)}
+                        >
                           <div className="flex justify-between">
                             <span className="font-medium">Quantity:</span>
                             <span>{pp.quantity} {pp.type ? `(${pp.type})` : ''}</span>
@@ -908,10 +1063,22 @@ const Products = () => {
                           )}
                           <div className="flex justify-between mt-1">
                             <span className="font-medium">Stock:</span>
-                            <span className={stock <= 0 ? "text-red-500" : ""}>
-                              {stock} {stock <= 0 ? "(Out of Stock)" : ""}
+                            <span className={isOutOfStock ? "text-red-500" : ""}>
+                              {stock} {isOutOfStock ? "(Out of Stock)" : ""}
                             </span>
                           </div>
+                          {!isOutOfStock && (
+                            <div className="mt-2 pt-2 border-t border-border/50 flex justify-end">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                className="h-8"
+                              >
+                                <ShoppingCart className="h-3 w-3 mr-2" />
+                                Add to Cart
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -944,6 +1111,125 @@ const Products = () => {
             </div>
           </DialogContent>
         )}
+      </Dialog>
+      
+      {/* Add to Cart Dialog */}
+      <Dialog open={showAddToCartDialog} onOpenChange={setShowAddToCartDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add to Cart</DialogTitle>
+          </DialogHeader>
+          
+          {selectedProduct && selectedPricePoint && (
+            <div className="space-y-4">
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border border-border">
+                  {selectedProduct.images && selectedProduct.images.length > 0 ? (
+                    <img
+                      src={selectedProduct.images[0].image_url}
+                      alt={selectedProduct.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://placehold.co/200x200?text=Error";
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-muted">
+                      <ShoppingBag className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-medium">{selectedProduct.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedPricePoint.quantity} {selectedPricePoint.type ? `(${selectedPricePoint.type})` : ''}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="font-medium">
+                      ₹{typeof selectedPricePoint.price === 'number' 
+                        ? selectedPricePoint.price.toFixed(2) 
+                        : parseFloat(selectedPricePoint.price as string).toFixed(2)}
+                    </span>
+                    {selectedPricePoint.mrp > selectedPricePoint.price && (
+                      <span className="text-sm line-through text-muted-foreground">
+                        ₹{typeof selectedPricePoint.mrp === 'number' 
+                          ? selectedPricePoint.mrp.toFixed(2) 
+                          : parseFloat(selectedPricePoint.mrp as string).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setAddToCartQuantity(Math.max(1, addToCartQuantity - 1))}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    value={addToCartQuantity}
+                    onChange={(e) => setAddToCartQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="text-center w-20"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setAddToCartQuantity(addToCartQuantity + 1)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Available: {typeof selectedPricePoint.stock === 'string' 
+                    ? parseInt(selectedPricePoint.stock) 
+                    : selectedPricePoint.stock}
+                </p>
+              </div>
+              
+              <div className="bg-muted p-3 rounded-md">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span className="font-medium">
+                    ₹{(typeof selectedPricePoint.price === 'number' 
+                      ? selectedPricePoint.price 
+                      : parseFloat(selectedPricePoint.price as string)) * addToCartQuantity}
+                  </span>
+                </div>
+                {selectedPricePoint.mrp > selectedPricePoint.price && (
+                  <div className="flex justify-between mt-1 text-green-600">
+                    <span>You save:</span>
+                    <span className="font-medium">
+                      ₹{((typeof selectedPricePoint.mrp === 'number' 
+                        ? selectedPricePoint.mrp 
+                        : parseFloat(selectedPricePoint.mrp as string)) - 
+                        (typeof selectedPricePoint.price === 'number' 
+                          ? selectedPricePoint.price 
+                          : parseFloat(selectedPricePoint.price as string))) * addToCartQuantity}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddToCartDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmAddToCart}>
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              Add to Cart
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   );
