@@ -20,6 +20,7 @@ import {
   Eye,
   X,
   ShoppingCart,
+  ClipboardPaste,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -117,8 +118,10 @@ const Products = () => {
   const [addToCartQuantity, setAddToCartQuantity] = useState(1);
   const [showAddToCartDialog, setShowAddToCartDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isPasteAvailable, setIsPasteAvailable] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadAreaRef = useRef<HTMLDivElement>(null);
   const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([]);
 
   useEffect(() => {
@@ -126,6 +129,24 @@ const Products = () => {
     fetchProducts();
     fetchAllSubcategories();
     loadCartFromLocalStorage();
+    
+    // Check if clipboard read is available
+    setIsPasteAvailable(
+      typeof navigator.clipboard !== 'undefined' && 
+      typeof navigator.clipboard.read !== 'undefined'
+    );
+    
+    // Add paste event listener
+    const handlePaste = (e: ClipboardEvent) => {
+      if (uploadAreaRef.current && uploadAreaRef.current.contains(document.activeElement)) {
+        handlePasteImage(e);
+      }
+    };
+    
+    document.addEventListener('paste', handlePaste);
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
   }, []);
 
   useEffect(() => {
@@ -250,10 +271,72 @@ const Products = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
-      setImageFiles([...imageFiles, ...newFiles]);
+      addImageFiles(newFiles);
+    }
+  };
+  
+  const addImageFiles = (files: File[]) => {
+    setImageFiles(prev => [...prev, ...files]);
+    
+    const newUrls = files.map(file => URL.createObjectURL(file));
+    setImageUrls(prev => [...prev, ...newUrls]);
+  };
+  
+  const handlePasteImage = async (e: ClipboardEvent) => {
+    try {
+      const items = e.clipboardData?.items;
+      if (!items) return;
       
-      const newUrls = newFiles.map(file => URL.createObjectURL(file));
-      setImageUrls([...imageUrls, ...newUrls]);
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          e.preventDefault();
+          
+          const blob = item.getAsFile();
+          if (!blob) continue;
+          
+          // Create a File object from the Blob
+          const file = new File([blob], `pasted-image-${Date.now()}.png`, {
+            type: 'image/png',
+          });
+          
+          addImageFiles([file]);
+          toast.success("Image pasted from clipboard");
+          break;
+        }
+      }
+    } catch (error) {
+      console.error("Error pasting image:", error);
+      toast.error("Failed to paste image from clipboard");
+    }
+  };
+  
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (!isPasteAvailable) {
+        toast.error("Clipboard access not available in your browser");
+        return;
+      }
+      
+      const clipboardItems = await navigator.clipboard.read();
+      for (const clipboardItem of clipboardItems) {
+        for (const type of clipboardItem.types) {
+          if (type.startsWith('image/')) {
+            const blob = await clipboardItem.getType(type);
+            const file = new File([blob], `pasted-image-${Date.now()}.png`, {
+              type: 'image/png',
+            });
+            
+            addImageFiles([file]);
+            toast.success("Image pasted from clipboard");
+            return;
+          }
+        }
+      }
+      toast.info("No image found in clipboard");
+    } catch (error) {
+      console.error("Error reading clipboard:", error);
+      toast.error("Failed to read image from clipboard");
     }
   };
   
@@ -633,7 +716,11 @@ const Products = () => {
               
               <div className="space-y-2">
                 <Label>Product Images</Label>
-                <div className="border-2 border-dashed border-border rounded-md p-4 text-center">
+                <div 
+                  ref={uploadAreaRef}
+                  className="border-2 border-dashed border-border rounded-md p-4 text-center"
+                  tabIndex={0}
+                >
                   <input 
                     type="file" 
                     ref={fileInputRef}
@@ -644,21 +731,42 @@ const Products = () => {
                     disabled={isLoading}
                   />
                   
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="w-full h-32 flex flex-col items-center justify-center gap-2"
-                    onClick={handleUploadClick}
-                    disabled={isLoading}
-                  >
-                    <Upload className="h-10 w-10 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                      Click to upload product images
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      PNG, JPG, GIF up to 10MB
-                    </span>
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="w-full h-20 flex flex-col items-center justify-center gap-1"
+                      onClick={handleUploadClick}
+                      disabled={isLoading}
+                    >
+                      <Upload className="h-6 w-6 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        Click to upload product images
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        PNG, JPG, GIF up to 10MB
+                      </span>
+                    </Button>
+                    
+                    <div className="text-xs text-muted-foreground">OR</div>
+                    
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="w-full h-10 flex items-center justify-center gap-2"
+                      onClick={handlePasteFromClipboard}
+                      disabled={isLoading || !isPasteAvailable}
+                    >
+                      <ClipboardPaste className="h-4 w-4 text-muted-foreground" />
+                      <span>Paste from clipboard</span>
+                    </Button>
+                    
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {isPasteAvailable 
+                        ? "You can also paste (Ctrl+V) when this area is focused"
+                        : "Clipboard paste not available in your browser"}
+                    </div>
+                  </div>
                 </div>
                 
                 {imageUrls.length > 0 && (
