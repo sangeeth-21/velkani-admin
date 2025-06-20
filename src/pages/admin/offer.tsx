@@ -66,7 +66,7 @@ interface Product {
   updated_at: string;
 }
 
-const API_BASE_URL = "https://srivelkanistore.site/api";
+const API_BASE_URL = "https://api.specd.in/velkani";
 
 const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);

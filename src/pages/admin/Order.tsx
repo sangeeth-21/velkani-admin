@@ -50,7 +50,7 @@ interface Order {
   items: OrderItem[];
 }
 
-const API_BASE_URL = "https://srivelkanistore.site/api";
+const API_BASE_URL = "https://api.specd.in/velkani";
 
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
