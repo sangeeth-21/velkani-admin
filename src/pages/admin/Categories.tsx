@@ -39,7 +39,7 @@ const Categories = () => {
     try {
       setIsLoading(true);
       const response = await fetch(
-        "https://srivelkanistore.site/api/index.php?action=get_categories"
+        "https://api.specd.in/velkani/index.php?action=get_categories"
       );
       const data = await response.json();
       if (data.status === "success") {
@@ -125,7 +125,7 @@ const Categories = () => {
 
       // Then create the category with the image URL
       const response = await fetch(
-        "https://srivelkanistore.site/api/index.php?action=add_category",
+        "https://api.specd.in/velkani/index.php?action=add_category",
         {
           method: "POST",
           headers: {
@@ -163,7 +163,7 @@ const Categories = () => {
       setIsDeleteLoading(true);
       
       const response = await fetch(
-        "https://srivelkanistore.site/api/index.php?action=delete_category",
+        "https://api.specd.in/velkani/index.php?action=delete_category",
         {
           method: "POST",
           headers: {

@@ -38,7 +38,7 @@ interface User {
   updated_at: string;
 }
 
-const API_BASE_URL = "https://srivelkanistore.site/api/user.php";
+const API_BASE_URL = "https://api.specd.in/velkani/user.php";
 
 export default function Users() {
   const [users, setUsers] = useState<User[]>([]);
