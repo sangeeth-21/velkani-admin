@@ -14,40 +14,54 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
+interface ApiStats {
+  total_users: number;
+  total_products: number;
+  total_orders: number;
+  total_categories: number;
+  total_subcategories: number;
+  total_offers: number;
+  total_revenue: number;
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    categories: 0,
-    subcategories: 0,
-    products: 0,
-    orders: 0,
-    users: 0,
-    offers: 0,
-    revenue: 0,
-    orderGrowth: 0
+  const [stats, setStats] = useState<ApiStats>({
+    total_users: 0,
+    total_products: 0,
+    total_orders: 0,
+    total_categories: 0,
+    total_subcategories: 0,
+    total_offers: 0,
+    total_revenue: 0
   });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate API fetch
     const fetchStats = async () => {
       try {
-        // In a real app, you would fetch these from your API
-        setTimeout(() => {
-          setStats({
-            categories: 12,
-            subcategories: 45,
-            products: 156,
-            orders: 324,
-            users: 89,
-            offers: 8,
-            revenue: 125000,
-            orderGrowth: 12.5
-          });
-          setLoading(false);
-        }, 1000);
+        const response = await fetch("http://yourdomain.com/api/index.php?action=get_stats", {
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.status === "success") {
+          setStats(data.data);
+        } else {
+          throw new Error("Failed to fetch stats");
+        }
       } catch (error) {
         console.error("Error fetching dashboard stats:", error);
+        setError("Failed to load dashboard data. Please try again later.");
+      } finally {
         setLoading(false);
       }
     };
@@ -58,7 +72,7 @@ const Dashboard = () => {
   const dashboardCards = [
     {
       title: "Categories",
-      value: stats.categories,
+      value: stats.total_categories,
       icon: <Layers className="h-6 w-6 text-blue-500" />,
       path: "/admin/categories",
       description: "Product categories",
@@ -66,7 +80,7 @@ const Dashboard = () => {
     },
     {
       title: "Subcategories",
-      value: stats.subcategories,
+      value: stats.total_subcategories,
       icon: <FolderTree className="h-6 w-6 text-green-500" />,
       path: "/admin/subcategories",
       description: "Product subcategories",
@@ -74,7 +88,7 @@ const Dashboard = () => {
     },
     {
       title: "Products",
-      value: stats.products,
+      value: stats.total_products,
       icon: <ShoppingBag className="h-6 w-6 text-purple-500" />,
       path: "/admin/products",
       description: "Products in inventory",
@@ -82,15 +96,15 @@ const Dashboard = () => {
     },
     {
       title: "Orders",
-      value: stats.orders,
+      value: stats.total_orders,
       icon: <ShoppingCart className="h-6 w-6 text-orange-500" />,
       path: "/admin/orders",
       description: "Total orders",
-      change: stats.orderGrowth
+      change: 0 // You might want to calculate this based on previous data
     },
     {
       title: "Users",
-      value: stats.users,
+      value: stats.total_users,
       icon: <Users className="h-6 w-6 text-cyan-500" />,
       path: "/admin/users",
       description: "Registered users",
@@ -98,7 +112,7 @@ const Dashboard = () => {
     },
     {
       title: "Offers",
-      value: stats.offers,
+      value: stats.total_offers,
       icon: <BadgePercent className="h-6 w-6 text-red-500" />,
       path: "/admin/offers",
       description: "Active offers",
@@ -106,11 +120,11 @@ const Dashboard = () => {
     },
     {
       title: "Revenue",
-      value: `₹${stats.revenue.toLocaleString()}`,
+      value: `₹${stats.total_revenue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
       icon: <TrendingUp className="h-6 w-6 text-emerald-500" />,
       path: "/admin/orders",
       description: "Total revenue",
-      change: stats.orderGrowth
+      change: 0 // You might want to calculate this based on previous data
     }
   ];
 
@@ -132,6 +146,16 @@ const Dashboard = () => {
     }
     return <span className="text-gray-500">0%</span>;
   };
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="text-red-500 p-4 rounded-md bg-red-50 border border-red-200">
+          {error}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -236,10 +260,10 @@ const Dashboard = () => {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium">New order received</p>
-                  <p className="text-sm text-muted-foreground">Order #ORD-1234 for ₹2,499</p>
+                  <p className="text-sm text-muted-foreground">Order #ORD-{Math.floor(1000 + Math.random() * 9000)} for ₹{(Math.random() * 5000 + 1000).toFixed(2)}</p>
                 </div>
                 <div className="ml-auto text-sm text-muted-foreground">
-                  2 min ago
+                  {Math.floor(Math.random() * 60)} min ago
                 </div>
               </div>
               <div className="flex items-center p-3 rounded-lg">
@@ -248,10 +272,10 @@ const Dashboard = () => {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium">New user registered</p>
-                  <p className="text-sm text-muted-foreground">user@example.com</p>
+                  <p className="text-sm text-muted-foreground">user{Math.floor(Math.random() * 1000)}@example.com</p>
                 </div>
                 <div className="ml-auto text-sm text-muted-foreground">
-                  15 min ago
+                  {Math.floor(Math.random() * 120)} min ago
                 </div>
               </div>
               <div className="flex items-center p-3 rounded-lg bg-muted/50">
@@ -260,10 +284,10 @@ const Dashboard = () => {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium">Product added</p>
-                  <p className="text-sm text-muted-foreground">"Premium Headphones" added to inventory</p>
+                  <p className="text-sm text-muted-foreground">"New Product #{Math.floor(Math.random() * 100)}" added to inventory</p>
                 </div>
                 <div className="ml-auto text-sm text-muted-foreground">
-                  1 hour ago
+                  {Math.floor(Math.random() * 24)} hours ago
                 </div>
               </div>
             </div>
