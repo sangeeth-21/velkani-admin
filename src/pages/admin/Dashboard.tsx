@@ -41,7 +41,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch("http://yourdomain.com/api/index.php?action=get_stats", {
+        const response = await fetch("http://api.specd.in/velkani/index.php?action=get_stats", {
           headers: {
             "Content-Type": "application/json"
           }
