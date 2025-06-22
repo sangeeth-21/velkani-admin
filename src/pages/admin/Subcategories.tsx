@@ -126,7 +126,7 @@ const Subcategories = () => {
       const formData = new FormData();
       formData.append("image", file);
 
-      const response = await fetch("https://ghost.a1h.in/api/upload.php", {
+      const response = await fetch("https://api.specd.in/velkani/upload.php", {
         method: "POST",
         body: formData,
       });
