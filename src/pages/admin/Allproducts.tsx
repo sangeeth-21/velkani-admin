@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ import {
   Minus,
   BadgePercent,
   ShoppingCart,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
@@ -107,6 +109,7 @@ const Products = () => {
   const [selectedPricePoint, setSelectedPricePoint] = useState<PricePoint | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [addToCartQuantity, setAddToCartQuantity] = useState(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -196,6 +199,60 @@ const Products = () => {
     }
   };
 
+  const uploadImages = async (files: File[]): Promise<string[]> => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append("images[]", file);
+    });
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/multi-upload.php`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        return data.urls;
+      }
+      throw new Error(data.message || "Failed to upload images");
+    } catch (error) {
+      console.error("Error uploading images:", error);
+      throw error;
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingProduct || !e.target.files) return;
+    
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    try {
+      setIsLoading(true);
+      const uploadedUrls = await uploadImages(files);
+      
+      const newImages = uploadedUrls.map((url, index) => ({
+        id: Date.now().toString() + index,
+        image_url: url,
+        display_order: (editingProduct.images.length + index).toString()
+      }));
+
+      setEditingProduct({
+        ...editingProduct,
+        images: [...editingProduct.images, ...newImages]
+      });
+
+      toast.success("Images uploaded successfully");
+    } catch (error) {
+      toast.error("Failed to upload images");
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const getSubcategoryName = (subcategoryId: string) => {
     const subcategory = allSubcategories.find(s => s.id === subcategoryId) || 
                        subcategories.find(s => s.id === subcategoryId);
@@ -226,7 +283,6 @@ const Products = () => {
       if (data.status === "success") {
         toast.success("Product deleted successfully");
         fetchProducts();
-        // Remove from cart if exists
         setCart(cart.filter(item => item.productId !== productId));
       } else {
         toast.error(data.message || "Failed to delete product");
@@ -240,7 +296,7 @@ const Products = () => {
   };
 
   const handleEditProduct = (product: Product) => {
-    setEditingProduct(JSON.parse(JSON.stringify(product))); // Deep copy
+    setEditingProduct(JSON.parse(JSON.stringify(product)));
     setIsEditing(true);
   };
 
@@ -450,7 +506,6 @@ const Products = () => {
     );
     
     if (existingItemIndex >= 0) {
-      // Update existing item
       const updatedCart = [...cart];
       updatedCart[existingItemIndex] = {
         ...updatedCart[existingItemIndex],
@@ -458,7 +513,6 @@ const Products = () => {
       };
       setCart(updatedCart);
     } else {
-      // Add new item
       const newItem: CartItem = {
         productId: selectedProduct.id,
         pricePointId: selectedPricePoint.id,
@@ -664,7 +718,6 @@ const Products = () => {
             </DialogHeader>
             
             <div className="grid gap-6 py-4 px-6">
-              {/* Product Images */}
               {previewProduct.images && previewProduct.images.length > 0 ? (
                 <div className="grid grid-cols-4 gap-4">
                   {previewProduct.images
@@ -688,7 +741,6 @@ const Products = () => {
                 </div>
               )}
               
-              {/* Product Details */}
               <div className="space-y-6">
                 <div>
                   <h3 className="font-medium text-sm text-muted-foreground mb-2">Category</h3>
@@ -920,10 +972,32 @@ const Products = () => {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <Label className="text-base">Images</Label>
-                  <Button variant="outline" size="sm" onClick={handleAddImage}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Image
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Images
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                      />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleAddImage}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add URL
+                    </Button>
+                  </div>
                 </div>
                 
                 <div className="space-y-4">
@@ -931,17 +1005,31 @@ const Products = () => {
                     <div key={img.id || index} className="space-y-3">
                       <div className="flex gap-3 items-end">
                         <div className="flex-1 space-y-2">
-                          <Label className="text-sm">Image URL {index + 1}</Label>
-                          <Input
-                            value={img.image_url}
-                            onChange={(e) => handleImageUrlChange(index, e.target.value)}
-                            placeholder="https://example.com/image.jpg"
-                          />
+                          <Label className="text-sm">Image {index + 1}</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={img.image_url}
+                              onChange={(e) => handleImageUrlChange(index, e.target.value)}
+                              placeholder="https://example.com/image.jpg"
+                            />
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10"
+                              onClick={() => {
+                                navigator.clipboard.writeText(img.image_url);
+                                toast.success("Image URL copied to clipboard");
+                              }}
+                              title="Copy URL"
+                            >
+                              <ImageIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-10 w-10 mb-[0.35rem]"
+                          className="h-10 w-10"
                           onClick={() => handleRemoveImage(index)}
                           disabled={editingProduct.images.length <= 1}
                         >
@@ -949,7 +1037,7 @@ const Products = () => {
                         </Button>
                       </div>
                       {img.image_url && (
-                        <div className="mt-1 w-32 h-32 border rounded-md overflow-hidden">
+                        <div className="mt-1 w-full max-w-xs aspect-square border rounded-md overflow-hidden">
                           <img
                             src={img.image_url}
                             alt={`Preview ${index + 1}`}
